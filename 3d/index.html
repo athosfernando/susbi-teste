@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050d1b">
+<title>SUSBI · Laboratório de Avatar Interativo</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main class="layout">
+  <header class="head">
+    <div class="brand"><div class="mark">S</div><div><h1>SUSBI <small>LAB</small></h1><p>Somente um Sistema Bem Inteligente</p></div></div>
+    <div class="head-right"><span class="dot" aria-hidden="true"></span> <span id="statusLabel">Inicializando</span></div>
+  </header>
+
+  <section class="studio" aria-label="Laboratório de animação da SUSBI">
+    <div class="stage-outer">
+      <div class="stage" id="stage" aria-label="Avatar 3D interativo">
+        <canvas id="canvas3d" aria-label="Protótipo tridimensional da SUSBI"></canvas>
+        <canvas id="canvasFallback" aria-label="Retrato animado de referência, modo de compatibilidade"></canvas>
+        <div class="stage-top"><span class="mode" id="renderMode">Preparando motor 3D...</span><span class="stage-tag">MVP 0.2</span></div>
+        <div class="stage-bottom"><span class="live-dot"></span><span id="avatarState">EM REPOUSO</span><div class="meter" id="meter"><i></i><i></i><i></i><i></i><i></i></div></div>
+      </div>
+      <p class="stage-caption" id="renderNote">A imagem de referência não é substituída. Este modelo 3D é experimental, não a fisionomia final.</p>
+    </div>
+
+    <div class="side">
+      <article class="panel">
+        <div class="panel-head"><h2>Visualização</h2><span class="tiny-tag">SEM VÍDEOS</span></div>
+        <div class="actions viewing">
+          <button id="show3d" class="primary" type="button">◈ Modelo 3D experimental</button>
+          <button id="showReference" type="button">◎ Rosto oficial</button>
+        </div>
+        <p class="help">No modo 3D as peças do rosto são malhas animáveis, mas a fisionomia ainda é provisória. O modo rosto oficial preserva a imagem aprovada e oferece uma animação 2D de demonstração.</p>
+      </article>
+      <article class="panel reference">
+        <div class="panel-head"><h2>Identidade oficial</h2><span class="tiny-tag">REFERÊNCIA</span></div>
+        <div class="ref-row"><img src="assets/referencia-oficial.jpg" alt="Rosto oficial da SUSBI, original aprovado pelo usuário"><div><strong>Preservar a aparência</strong><p>Esta é a imagem aprovada. A cabeça 3D ao lado valida movimentos e controles; seu rosto definitivo será modelado a partir das referências.</p></div></div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head"><h2>Conversa</h2><span class="tiny-tag">SIMULAÇÃO LOCAL</span></div>
+        <div class="speech" id="transcript" aria-live="polite">Olá! Sou a SUSBI. Posso demonstrar minha voz, escutar uma frase e reagir sem reproduzir nenhum vídeo.</div>
+        <div class="actions">
+          <button id="listen" class="primary" type="button">🎙️ Ouvir</button>
+          <button id="speak" type="button">🔊 Testar fala</button>
+          <button id="present" type="button">♫ Voz original</button>
+          <button id="stop" type="button">■ Parar</button>
+        </div>
+        <p class="help" id="help">A voz original é uma gravação de demonstração. As respostas novas usam temporariamente a voz do navegador.</p>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head"><h2>Controles do avatar</h2><span class="tiny-tag">TEMPO REAL</span></div>
+        <label for="emotion">Expressão facial</label>
+        <select id="emotion"><option value="neutra">Neutra</option><option value="alegria">Alegria</option><option value="surpresa">Surpresa</option><option value="tristeza">Tristeza</option><option value="atencao">Atenção</option></select>
+        <label for="headTurn">Virar a cabeça <span id="headValue">0°</span></label><input id="headTurn" type="range" min="-20" max="20" value="0">
+        <label for="mouthTest">Abertura da boca <span id="mouthValue">0%</span></label><input id="mouthTest" type="range" min="0" max="100" value="0">
+        <label class="manual"><input id="manualMode" type="checkbox"> Habilitar teste manual da boca (sem fala)</label>
+        <p class="help">Durante o uso normal, a boca fica fechada em silêncio ou enquanto escuta. O teste manual só funciona ao ativar a opção acima.</p>
+        <div class="actions"><button id="blink" type="button">Piscar</button><button id="reset" type="button">Restaurar</button></div>
+      </article>
+    </div>
+  </section>
+
+  <footer>Protótipo independente · sem vídeo em loop · sem chaves de API · não altera o Lembra Aí · <strong>Próxima etapa:</strong> modelo 3D definitivo fiel ao rosto original.</footer>
+</main>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
