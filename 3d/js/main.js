@@ -7,7 +7,7 @@ let emotion='neutra',recognition=null,listenToken=0,utterance=null;
 let originalAudio=null,audioCtx=null,audioAnalyser=null,audioData=null;
 let isOriginalAudio=false,voiceTTS=false,startedSpeaking=0,manualMouth=0;
 
-const labels={repouso:'Em repouso',ouvindo:'Ouvindo',falando:'Falando',processando:'Processando'};
+const labels={repouso:'Em repouso',preparando:'Preparando microfone',ouvindo:'Ouvindo',falando:'Falando',processando:'Processando'};
 const setSpeech=text=>{speech.textContent=text};
 function stateChange(next){
   state=next;
@@ -17,6 +17,7 @@ function stateChange(next){
   if(next!=='falando')avatar?.setMouth(0);
 }
 function stopAll(){
+  if(typeof limparTimerEscuta==='function')limparTimerEscuta();
   listenToken++;voiceTTS=false;isOriginalAudio=false;
   if(recognition){try{recognition.abort()}catch{}recognition=null;}
   if(originalAudio){originalAudio.pause();originalAudio.currentTime=0;}
@@ -94,24 +95,125 @@ async function playOriginal(){
     help.textContent='Esta fala usa seu MP3 original. A animação é impulsionada pela intensidade do áudio, não por fonemas.';
   }catch(e){isOriginalAudio=false;stateChange('repouso');help.textContent='Falha na reprodução: '+e.message}
 }
+// Monitor de escuta: nunca indicar captação antes do evento audiostart.
+// Três proteções: permissão, tempo máximo de silêncio e recuperação de erros.
+let escutaTimer=null;
+function limparTimerEscuta(){
+  if(escutaTimer!==null){clearTimeout(escutaTimer);escutaTimer=null;}
+}
+function respostaDoTeste(frase){
+  // Demonstração LOCAL (sem Claude): reconhecer uma pergunta sobre escuta
+  // dá um retorno natural, sem fingir que há uma IA conectada.
+  const normalizado=frase.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  if(/(esta|ta|consegue|pode|podia).{0,28}(me |nos )?(ouvindo|ouvir|escutar)/.test(normalizado)
+      || /voce me ouve/.test(normalizado)){
+    return 'Sim, estou ouvindo você. O reconhecimento de voz está funcionando.';
+  }
+  return 'Eu ouvi você dizer: '+frase+'. Este ainda é um teste de reconhecimento de voz da SUSBI, sem conexão com a inteligência artificial.';
+}
 function listen(){
   stopAll();
-  if(!window.isSecureContext){help.textContent='Microfone exige HTTPS ou localhost. Para usar no celular, publique a página no GitHub Pages.';return}
+  limparTimerEscuta();
+  if(!window.isSecureContext){
+    help.textContent='O microfone exige HTTPS ou localhost. Abra a SUSBI pelo endereço publicado no GitHub Pages.';
+    setSpeech('Permissão de microfone indisponível: acesso sem HTTPS.');
+    return;
+  }
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){help.textContent='Este navegador não oferece reconhecimento de voz. Tente o Chrome atualizado.';return}
+  if(!SR){
+    help.textContent='Este navegador não oferece reconhecimento de voz. Utilize o Chrome atualizado e verifique as permissões de microfone.';
+    setSpeech('Reconhecimento de voz não disponível.');
+    return;
+  }
   const token=++listenToken;
-  const r=new SR();recognition=r;r.lang='pt-BR';r.interimResults=false;r.maxAlternatives=1;
-  r.onresult=e=>{
-    if(token!==listenToken)return;
-    const heard=e.results[0][0].transcript;recognition=null;
-    setSpeech('Você disse: “'+heard+'”');
-    // Demonstração deliberadamente local: NÃO invoca Claude nem cria lembretes.
-    setTimeout(()=>{if(token===listenToken)speakText('Eu ouvi você dizer: '+heard+'. Esta é a demonstração da SUSBI, ainda sem conexão à inteligência artificial.')},350);
+  const r=new SR();recognition=r;
+  r.lang='pt-BR';r.interimResults=false;r.continuous=false;r.maxAlternatives=1;
+  let captando=false,resultado=false,erro=false;
+  const ativo=()=>token===listenToken;
+  const encerrarSemFala=(texto)=>{
+    if(!ativo()||resultado||erro)return;
+    erro=true;limparTimerEscuta();recognition=null;
+    try{r.abort()}catch{}
+    avatar?.setMouth(0);stateChange('repouso');
+    setSpeech(texto);
+    help.textContent='Toque novamente em “Ouvir”, aguarde a confirmação e fale perto do microfone.';
   };
-  r.onerror=e=>{if(token!==listenToken)return;recognition=null;stateChange('repouso');help.textContent='Erro do microfone: '+e.error+'. Verifique a permissão do navegador.'};
-  r.onend=()=>{if(token===listenToken&&recognition===r){recognition=null;stateChange('repouso')}};
-  try{r.start();stateChange('ouvindo');setSpeech('Estou ouvindo. Pode falar.');help.textContent='Durante a escuta, a boca permanece fechada.'}
-  catch(e){recognition=null;stateChange('repouso');help.textContent='Falha ao iniciar o microfone: '+e.message}
+  const aguardarFala=()=>{
+    limparTimerEscuta();
+    escutaTimer=setTimeout(()=>encerrarSemFala('Não identifiquei nenhuma frase em 15 segundos. Tente novamente.'),15000);
+  };
+  r.onstart=()=>{
+    if(!ativo())return;
+    stateChange('preparando');
+    setSpeech('Reconhecimento iniciado. Aguardando acesso ao áudio do microfone...');
+    help.textContent='O estado “Ouvindo” aparecerá quando o navegador confirmar a captação do microfone.';
+    aguardarFala();
+  };
+  r.onaudiostart=()=>{
+    if(!ativo())return;
+    captando=true;stateChange('ouvindo');
+    setSpeech('Estou ouvindo. Pode falar agora.');
+    help.textContent='Microfone ativo: fale uma frase. A boca da SUSBI permanece fechada enquanto ela escuta.';
+    aguardarFala();
+  };
+  r.onspeechstart=()=>{
+    if(!ativo())return;
+    captando=true;stateChange('ouvindo');
+    setSpeech('Estou ouvindo sua voz. Pode continuar...');
+    help.textContent='Voz detectada. Aguardando o reconhecimento da frase completa.';
+    aguardarFala();
+  };
+  r.onresult=e=>{
+    if(!ativo()||resultado||erro)return;
+    const frase=e.results?.[0]?.[0]?.transcript?.trim()||'';
+    if(!frase){encerrarSemFala('O microfone funcionou, mas não consegui entender a frase.');return;}
+    resultado=true;limparTimerEscuta();recognition=null;
+    stateChange('processando');
+    setSpeech('Você disse: “'+frase+'”');
+    help.textContent='Reconhecimento concluído. Preparando a resposta de teste da SUSBI...';
+    setTimeout(()=>{
+      if(!ativo())return;
+      speakText(respostaDoTeste(frase));
+    },280);
+  };
+  r.onnomatch=()=>encerrarSemFala('Eu ouvi um som, mas não consegui reconhecer as palavras.');
+  r.onerror=e=>{
+    if(!ativo()||resultado||erro)return;
+    erro=true;limparTimerEscuta();recognition=null;
+    stateChange('repouso');avatar?.setMouth(0);
+    const mensagens={
+      'not-allowed':'Microfone bloqueado. No Chrome, toque no ícone à esquerda do endereço, abra Permissões e autorize Microfone.',
+      'service-not-allowed':'O serviço de reconhecimento de voz está bloqueado pelo navegador ou dispositivo.',
+      'audio-capture':'Não encontrei áudio do microfone. Confira se outro aplicativo está usando o microfone.',
+      'no-speech':'O microfone abriu, mas não detectou uma frase. Tente falar um pouco mais perto.',
+      'network':'Falha de conexão com o serviço de reconhecimento de voz do navegador. Confira sua internet.',
+      'language-not-supported':'O reconhecimento de voz em português não está disponível neste navegador.',
+      'aborted':'A escuta foi interrompida.'
+    };
+    const explicacao=mensagens[e.error]||('Ocorreu um erro no reconhecimento: '+e.error+'.');
+    setSpeech(explicacao);
+    help.textContent='Estado da escuta: '+(captando?'o microfone chegou a captar áudio.':'o navegador não confirmou a captação do microfone.')+' Tente novamente após verificar a mensagem.';
+  };
+  r.onend=()=>{
+    if(!ativo())return;
+    limparTimerEscuta();
+    if(recognition===r)recognition=null;
+    if(resultado||erro)return;
+    stateChange('repouso');avatar?.setMouth(0);
+    setSpeech(captando?'A escuta terminou sem identificar uma frase completa.':'O navegador encerrou a escuta antes de confirmar acesso ao microfone.');
+    help.textContent='Toque em “Ouvir” para tentar novamente. Se persistir, confira a permissão do microfone no navegador.';
+  };
+  try{
+    stateChange('preparando');
+    setSpeech('Solicitando acesso ao microfone...');
+    help.textContent='Se aparecer o pedido de permissão do navegador, escolha “Permitir”.';
+    aguardarFala();
+    r.start();
+  }catch(e){
+    limparTimerEscuta();recognition=null;stateChange('repouso');
+    setSpeech('Não consegui iniciar o reconhecimento de voz.');
+    help.textContent='Falha ao iniciar microfone: '+e.message;
+  }
 }
 $('show3d').addEventListener('click',()=>view('3d'));
 $('showReference').addEventListener('click',()=>view('reference'));
