@@ -80,6 +80,7 @@ function cameraAt(t) {
 cameraAt(0);
 
 // ---------- modelo ----------
+let animated = new Set();
 let mixer = null, entradaAction = null, head = null, morph = {}, bones = {}, clipLen = 6.5, entradaT = 0, playing = false;
 const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
 loader.load('susbi.glb', (gltf) => {
@@ -100,6 +101,7 @@ loader.load('susbi.glb', (gltf) => {
   mixer = new THREE.AnimationMixer(root);
   const clip = gltf.animations.find((c) => /entrada/i.test(c.name)) || gltf.animations[0];
   clipLen = clip.duration;
+  animated = new Set(clip.tracks.map((tr) => tr.name.split('.')[0]));
   entradaAction = mixer.clipAction(clip); entradaAction.setLoop(THREE.LoopOnce, 1); entradaAction.clampWhenFinished = true;
   $('loading').style.display = 'none';
   setStatus('Pronta');
@@ -239,10 +241,17 @@ $('boca').oninput = (e) => { manualJaw = e.target.value * 0.10; $('vBoca').textC
 
 // ---------- laço ----------
 const clock = new THREE.Clock();
+const baseQ = {};
 function loop() {
   const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
   if (mixer) {
     mixer.update(dt);
+    // os ajustes de cabeca/olhos/mandibula sao aplicados sobre a pose da animacao; guarda essa pose base
+    // enquanto a animacao roda e a restaura depois, para os ajustes nao se acumularem quadro a quadro
+    for (const n of ['Neck', 'Head', 'Jaw', 'LeftEye', 'RightEye']) {
+      const b = bones[n]; if (!b) continue;
+      if ((playing && animated.has(b.name)) || !baseQ[n]) baseQ[n] = b.quaternion.clone(); else b.quaternion.copy(baseQ[n]);
+    }
     if (playing) { entradaT += dt; if (entradaT >= clipLen) { playing = false; setStatus('Em repouso'); } }
     cameraAt(playing ? entradaT : clipLen);
     speechUpdate(); faceUpdate(dt, t);
