@@ -22,6 +22,7 @@
   .row{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
   button{flex:1 1 30%;min-height:44px;padding:10px 8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:12px;font-size:.92rem}
   button.primary{background:#0d3550;border-color:#2c95c7}
+  button.mudo{background:#3a0d14;border-color:#c72c4a}
   label{display:block;font-size:.82rem;color:var(--muted);margin:12px 2px 4px}
   input[type=range],select{width:100%}
   select{min-height:40px;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:6px}
@@ -31,33 +32,26 @@
 </head>
 <body>
 <main>
-  <header><h1>SUSBI <small>MODELO BLENDER v21</small></h1><span id="status">Carregando</span></header>
+  <header><h1>SUSBI <small>MODELO BLENDER v22</small></h1><span id="status">Carregando</span></header>
   <div class="stage" id="stage">
     <canvas id="c" aria-label="SUSBI em 3D"></canvas>
     <div id="loading"><div>Carregando a SUSBI…</div><div id="bar"><i></i></div><div id="loadMsg"></div></div>
   </div>
-  <p class="say" id="say" aria-live="polite">Olá! Eu sou a SUSBI.</p>
+  <p class="say" id="say" aria-live="polite">Olá! Eu sou a SUSBI. Pode falar comigo.</p>
   <div class="row">
-    <button id="entrada" class="primary" type="button">▶ Entrada</button>
-    <button id="falar" type="button">🔊 Testar fala</button>
-    <button id="voz" type="button">♫ Voz original</button>
-  </div>
-  <div class="row">
-    <button id="ouvir" type="button">🎙️ Ouvir</button>
-    <button id="piscar" type="button">Piscar</button>
-    <button id="parar" type="button">■ Parar</button>
+    <button id="mic" class="primary" type="button" aria-pressed="false">🎙️ Escutando</button>
+    <button id="andar" type="button">🚶 Andar (teste)</button>
+    <button id="parar" type="button">■ Parar fala</button>
   </div>
   <label for="expr">Expressão</label>
   <select id="expr"><option value="neutra">Neutra</option><option value="alegria">Alegria</option><option value="surpresa">Surpresa</option><option value="tristeza">Tristeza</option><option value="atencao">Atenção</option></select>
-  <label for="cabeca">Virar a cabeça <span id="vCabeca">0°</span></label><input id="cabeca" type="range" min="-25" max="25" value="0">
-  <label for="olhar">Olhar para os lados <span id="vOlhar">0°</span></label><input id="olhar" type="range" min="-20" max="20" value="0">
   <label for="boca">Abrir a boca (teste) <span id="vBoca">0%</span></label><input id="boca" type="range" min="0" max="100" value="0">
-  <footer>Protótipo de teste do modelo 3D feito no Blender (revisão 21): corpo com esqueleto, formas da boca para a fala, piscar, olhos e animação de entrada. Sem IA conectada.<br>
+  <footer>Protótipo de teste do modelo 3D (revisão 21, página v22): abre no close do ombro para cima; ela pisca sozinha, mexe a cabeça, os olhos e o corpo de leve e às vezes anda (a câmera abre). O microfone fica sempre escutando; use o botão para deixar mudo. Sem IA conectada: por enquanto ela só repete o que ouviu.<br>
   Corpo gerado no Meshy a partir das referências da SUSBI; cabeça, rosto e animações feitos no Blender. · <a href="../3d/">Laboratório anterior</a></footer>
 </main>
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}
 </script>
-<script type="module" src="app.js?v=21"></script>
+<script type="module" src="app.js?v=22"></script>
 </body>
 </html>

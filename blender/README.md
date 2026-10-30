@@ -9,15 +9,16 @@ Página: `blender/index.html`. Ela abre o `susbi.glb` (4,1 MB), exportado da rev
   - os pontos e as linhas do rosto ficam numa textura luminosa;
   - as linhas flutuantes de trás viraram tubos finos.
 - **Esqueleto** com nomes no padrão Mixamo (`mixamorig...`), incluindo dedos, mandíbula (`Jaw`) e olhos (`LeftEye` e `RightEye`).
-- **Animações:** `SUSBI entrada (LEMBRAI)`, `SUSBI caminhar (no lugar)` e `SUSBI falar (teste)`.
+- **Animações:** `SUSBI caminhar (no lugar)` é a usada pela página; `SUSBI entrada (LEMBRAI)` e `SUSBI falar (teste)` continuam no arquivo, mas a página não usa.
 
-## O que a página faz
-- **Ao abrir:** a SUSBI entra pela esquerda caminhando, vira para a câmera e a câmera fecha no close do ombro para cima.
-- **Durante o uso:** ela pisca e respira sozinha, e mexe os olhos.
-- **Testar fala:** usa a voz do navegador e escolhe as formas da boca pelo texto.
-- **Voz original:** toca o áudio de `3d/assets` e mexe a boca pelo volume.
-- **Ouvir:** usa o reconhecimento de voz do Chrome e depois repete o que ouviu.
-- **Controles manuais:** expressão, virar a cabeça, olhar para os lados e abrir a boca.
+## O que a página faz (v22)
+- **Ao abrir:** já mostra a SUSBI no close do ombro para cima (a animação de entrada foi tirada).
+- **Piscar:** automático, em intervalos aleatórios de 3 a 8 s (2 a 5 s enquanto fala); às vezes pisca duas vezes. Pessoas em repouso piscam de 8 a 21 vezes por minuto.
+- **Corpo vivo:** respira, balança o tronco, mexe a cabeça de leve, olha para outros lugares e volta para você. Os olhos fazem pequenos movimentos. Tudo aleatório.
+- **Andar:** de vez em quando ela decide andar. A câmera abre para meio corpo ou corpo inteiro, ela vira, caminha até outro ponto, fica de frente e o close volta. Os pés ficam no chão: a velocidade acompanha a passada e o chão fica na altura da sola. O botão **Andar (teste)** força uma caminhada.
+- **Microfone:** fica sempre escutando (reconhecimento de voz do Chrome). O botão vermelho **Mudo** desliga. Enquanto ela fala, não escuta a si mesma. Sem IA conectada, por enquanto ela só repete o que ouviu, com a voz do navegador, para testar a boca.
+- **Traje:** mais claro e com reflexo (antes estava quase preto).
+- **Controles de teste:** expressão e abrir a boca.
 
 ## Origem do corpo
 O corpo foi gerado no Meshy a partir das referências da SUSBI (revisão 21).
