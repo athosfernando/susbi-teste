@@ -1,9 +1,9 @@
 # SUSBI — teste do modelo do Blender no navegador
 
-Página: `blender/index.html`. Ela abre o `susbi.glb` (2,9 MB), exportado da revisão 20 do Blender.
+Página: `blender/index.html`. Ela abre o `susbi.glb` (4,1 MB), exportado da revisão 21 do Blender.
 
 ## O que tem no modelo
-- **Corpo:** cerca de 158 mil triângulos, com o relevo do original num mapa de normais. As linhas do traje acendem em ciano.
+- **Corpo:** gerado no Meshy, reduzido para cerca de 159 mil triângulos, com as texturas do Meshy (cor, relevo, aspereza). Os filetes azuis do traje acendem.
 - **Cabeça:**
   - formas da boca para a fala (`Fala O`, `Fala U`, `Fala E`, `Fala I`, `Fala M B P` e `Fala F V`), além de `Piscar` e `Respirar`;
   - os pontos e as linhas do rosto ficam numa textura luminosa;
@@ -19,5 +19,5 @@ Página: `blender/index.html`. Ela abre o `susbi.glb` (2,9 MB), exportado da rev
 - **Ouvir:** usa o reconhecimento de voz do Chrome e depois repete o que ouviu.
 - **Controles manuais:** expressão, virar a cabeça, olhar para os lados e abrir a boca.
 
-## Crédito
-O corpo é baseado em "Android Remake | Adroid fighter girl", de lawlietrecluze (Sketchfab), sob licença CC BY 4.0. Foi modificado.
+## Origem do corpo
+O corpo foi gerado no Meshy a partir das referências da SUSBI (revisão 21).
