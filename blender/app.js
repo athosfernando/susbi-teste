@@ -37,9 +37,10 @@ const top = new THREE.PointLight(0x8fd0ff, 3, 0, 2); top.position.set(0, 3, -0.3
 // chão escuro com dois anéis de luz
 const floor = new THREE.Mesh(new THREE.CircleGeometry(7, 64), new THREE.MeshStandardMaterial({ color: 0x03080f, roughness: 0.55, metalness: 0.25 }));
 floor.rotation.x = -Math.PI / 2; scene.add(floor);
+const groundParts = [floor];
 for (const r of [0.9, 1.35]) {
   const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.006, 6, 160), new THREE.MeshBasicMaterial({ color: 0x6fd2ff }));
-  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.003; scene.add(ring);
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.003; ring.userData.dy = 0.003; scene.add(ring); groundParts.push(ring);
 }
 // partículas discretas ao fundo
 {
@@ -83,7 +84,7 @@ cameraAt(0);
 let animated = new Set();
 let mixer = null, entradaAction = null, head = null, morph = {}, bones = {}, clipLen = 6.5, entradaT = 0, playing = false;
 const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
-loader.load('susbi.glb', (gltf) => {
+loader.load('susbi.glb?v=21', (gltf) => {
   const root = gltf.scene; scene.add(root);
   root.traverse((o) => {
     if (o.isMesh) {
@@ -98,6 +99,11 @@ loader.load('susbi.glb', (gltf) => {
     }
     if (o.isBone) bones[o.name.replace('mixamorig', '')] = o;
   });
+  // chão na altura da sola do modelo
+  root.updateMatrixWorld(true);
+  let sole = Infinity;
+  root.traverse((o) => { if (o.isMesh && o.material && o.material.name === 'SUSBI corpo') { o.geometry.computeBoundingBox(); const b = o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld); sole = Math.min(sole, b.min.y); } });
+  if (isFinite(sole)) for (const g of groundParts) g.position.y = sole + (g.userData.dy || 0);
   mixer = new THREE.AnimationMixer(root);
   const clip = gltf.animations.find((c) => /entrada/i.test(c.name)) || gltf.animations[0];
   clipLen = clip.duration;
