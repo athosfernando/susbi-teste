@@ -21,5 +21,13 @@ Página: `blender/index.html`. Ela abre o `susbi.glb` (4,1 MB), exportado da rev
 - **Expressões:** sorriso suave novo no modelo; a expressão **Serena (busto)** copia o jeito do busto de 26/10 (olhos quase fechados, sorriso suave, cabeça baixa e inclinada). Parada, ela às vezes dá um sorriso leve.
 - **Controles de teste:** expressão e abrir a boca.
 
+## Animações do Meshy (v24)
+- `animacoes1.glb` (1,3 MB) traz as 20 primeiras animações do Meshy, já passadas para o esqueleto da SUSBI: parada, respirar e olhar ao redor, andar (4 tipos), correr, viradas, conversar e falar com gestos, concordar, escutar, acenar, encolher os ombros, coçar a cabeça e alongamento.
+- **Parada:** ela alterna entre as animações de parada e, de vez em quando, faz um gesto (olhar ao redor, encolher os ombros, coçar a cabeça, escutar).
+- **Fala:** enquanto fala, ela gesticula com as mãos.
+- **Ao abrir:** ela acena um olá.
+- **Andar:** usa a caminhada do Meshy.
+- **Menu Animação (teste):** toca qualquer uma das 20.
+
 ## Origem do corpo
 O corpo foi gerado no Meshy a partir das referências da SUSBI (revisão 21).

@@ -32,7 +32,7 @@
 </head>
 <body>
 <main>
-  <header><h1>SUSBI <small>MODELO BLENDER v22</small></h1><span id="status">Carregando</span></header>
+  <header><h1>SUSBI <small>MODELO BLENDER v24</small></h1><span id="status">Carregando</span></header>
   <div class="stage" id="stage">
     <canvas id="c" aria-label="SUSBI em 3D"></canvas>
     <div id="loading"><div>Carregando a SUSBI…</div><div id="bar"><i></i></div><div id="loadMsg"></div></div>
@@ -43,6 +43,8 @@
     <button id="andar" type="button">🚶 Andar (teste)</button>
     <button id="parar" type="button">■ Parar fala</button>
   </div>
+  <label for="anim">Animação (teste)</label>
+  <select id="anim"><option value="">Escolha para ver…</option></select>
   <label for="expr">Expressão</label>
   <select id="expr"><option value="neutra">Neutra</option><option value="alegria">Alegria</option><option value="surpresa">Surpresa</option><option value="tristeza">Tristeza</option><option value="atencao">Atenção</option><option value="serena">Serena (busto)</option></select>
   <label for="boca">Abrir a boca (teste) <span id="vBoca">0%</span></label><input id="boca" type="range" min="0" max="100" value="0">
@@ -52,6 +54,6 @@
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}
 </script>
-<script type="module" src="app.js?v=23"></script>
+<script type="module" src="app.js?v=24"></script>
 </body>
 </html>

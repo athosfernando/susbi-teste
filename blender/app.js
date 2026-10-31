@@ -72,6 +72,7 @@ new ResizeObserver(resize).observe(stage); resize();
 
 // ---------- modelo ----------
 const Y = new THREE.Vector3(0, 1, 0);
+const clips = {}, body = {};
 let model = null, root = null, mixer = null, walk = null, head = null, morph = {}, bones = {};
 const R0 = new THREE.Quaternion();
 const hipOff = new THREE.Vector3();
@@ -109,10 +110,27 @@ loader.load('susbi.glb?v=22', (gltf) => {
     }
     if (o.isBone) bones[o.name.replace('mixamorig', '')] = o;
   });
-
+  // animações do Meshy ficam num arquivo separado e leve (lote 1: 20 animações)
+  loader.load('animacoes1.glb?v=1', (ag) => finishSetup(ag.animations), undefined, () => finishSetup(gltf.animations));
+}, (e) => {
+  if (e.total) $('bar').firstElementChild.style.width = Math.round((e.loaded / e.total) * 100) + '%';
+}, (err) => {
+  $('loadMsg').textContent = 'Não foi possível carregar o modelo: ' + (err && err.message ? err.message : err);
+  $('status').textContent = 'Erro';
+});
+function finishSetup(anims) {
   mixer = new THREE.AnimationMixer(model);
-  const wc = gltf.animations.find((c) => /caminhar/i.test(c.name));
+  for (const c of anims) clips[c.name] = c;
+  const wc = clips.Walking_Woman || anims.find((c) => /walk|caminhar/i.test(c.name));
   walk = mixer.clipAction(wc); walk.play(); walk.setEffectiveWeight(0);
+  // camada do corpo: animações do Meshy (parada, fala, gestos) com transição suave entre elas
+  for (const n of Object.keys(clips)) {
+    if (clips[n] === wc) continue;
+    const a = mixer.clipAction(clips[n]); a.play(); a.setEffectiveWeight(0); a.timeScale = 0;
+    body[n] = { a, w: 0, tw: 0, once: false };
+  }
+  const sel = $('anim');
+  if (sel) { for (const n of Object.keys(clips).sort()) { const o = document.createElement('option'); o.value = n; o.textContent = NOMES[n] || n; sel.appendChild(o); } }
 
   // para onde o corpo olha no repouso (do calcanhar para a ponta do pé)
   root.position.set(0, 0, 0); root.quaternion.copy(R0); mixer.update(0); model.updateMatrixWorld(true);
@@ -134,16 +152,13 @@ loader.load('susbi.glb?v=22', (gltf) => {
   for (const g of groundParts) g.position.y = floorY + (g.userData.dy || 0);
 
   stride = measureStride(wc);
+  playBody(pickIdle(), 0);
+  setTimeout(() => { if (S.mode === 'idle' && !speaking) playBody('Big_Wave_Hello', 0.4, true); }, 1500);
   setFrame('close', true);
   $('loading').style.display = 'none';
   updateStatus();
   startMic();
-}, (e) => {
-  if (e.total) $('bar').firstElementChild.style.width = Math.round((e.loaded / e.total) * 100) + '%';
-}, (err) => {
-  $('loadMsg').textContent = 'Não foi possível carregar o modelo: ' + (err && err.message ? err.message : err);
-  $('status').textContent = 'Erro';
-});
+}
 
 // velocidade da caminhada: quanto o pé apoiado escorrega para trás na animação "no lugar".
 // Andando nessa mesma velocidade, o pé fica parado no chão (sem patinar nem flutuar).
@@ -190,6 +205,52 @@ function cameraUpdate(dt) {
   cam.pos.lerp(cam.wantPos, r); cam.tgt.lerp(cam.wantTgt, r);
   camera.position.copy(cam.pos); camera.lookAt(cam.tgt);
 }
+
+// ---------- camada do corpo (animações do Meshy) ----------
+const NOMES = {
+  Idle_02: 'Parada', Idle_03: 'Alongamento', Long_Breathe_and_Look_Around: 'Respira e olha ao redor', Walking_Woman: 'Andar (mulher)',
+  Walking: 'Andar', Casual_Walk: 'Caminhada casual', Confident_Strut: 'Caminhada confiante', Running: 'Correr',
+  Idle_Turn_Left: 'Virar à esquerda parada', Idle_Turn_Right: 'Virar à direita parada', Walk_Turn_Left: 'Virar à esquerda andando',
+  Walk_Turn_Right_Female: 'Virar à direita andando', Stand_and_Chat: 'Conversar', Talk_with_Hands_Open: 'Falar com as mãos abertas',
+  Talk_with_Right_Hand_Open: 'Falar com a mão direita', Agree_Gesture: 'Concordar', Listening_Gesture: 'Escutar', Big_Wave_Hello: 'Acenar olá',
+  Shrug: 'Encolher os ombros', Confused_Scratch: 'Coçar a cabeça (confusa)',
+};
+const IDLES = [['Idle_02', 5], ['Long_Breathe_and_Look_Around', 2]];   // Idle_03 é um alongamento: só no menu de teste
+const TALKS = ['Talk_with_Hands_Open', 'Talk_with_Right_Hand_Open', 'Stand_and_Chat'];
+const EXTRAS = [['Long_Breathe_and_Look_Around', 3], ['Shrug', 1], ['Confused_Scratch', 1], ['Listening_Gesture', 1]];
+let bodyCur = null, nextExtra = rand(25, 50);
+function pickW(list) { const ok = list.filter(([n]) => body[n]); let t = ok.reduce((a, [, w]) => a + w, 0) * Math.random(); for (const [n, w] of ok) { if ((t -= w) <= 0) return n; } return ok.length ? ok[0][0] : null; }
+function pickIdle() { return pickW(IDLES); }
+function playBody(name, fade = 0.5, once = false) {
+  const B = body[name]; if (!B) return;
+  if (bodyCur === name && !once) return;
+  for (const k in body) body[k].tw = 0;
+  B.tw = 1; B.once = once; B.fade = Math.max(0.05, fade);
+  if (bodyCur !== name || once) { B.a.time = 0; }
+  B.a.timeScale = 1; B.a.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, once ? 1 : Infinity); B.a.clampWhenFinished = once;
+  if (fade === 0) B.w = 1;
+  bodyCur = name;
+}
+function bodyLayer(dt) {
+  if (!bodyCur) return;
+  const B = body[bodyCur];
+  // fim de um gesto (ou fim de um ciclo parada): volta para a parada / escolhe outra variação
+  if (B.once && B.a.time >= B.a.getClip().duration - 0.05) { playBody(speaking ? TALKS[Math.floor(Math.random() * TALKS.length)] : pickIdle(), 0.6); }
+  else if (!speaking && S.mode === 'idle' && IDLES.some(([n]) => n === bodyCur) && B.lastT !== undefined && B.a.time < B.lastT && Math.random() < 0.3) {
+    const n = pickIdle(); if (n !== bodyCur) playBody(n, 0.8);   // terminou um ciclo: às vezes troca de variação
+  }
+  B.lastT = B.a.time;
+  if (!speaking && S.mode === 'idle') { nextExtra -= dt; if (nextExtra <= 0) { nextExtra = rand(30, 70); if (!B.once) playBody(pickW(EXTRAS), 0.7, true); } }
+  const still = 1 - S.w;
+  for (const k in body) {
+    const b = body[k]; const r = damp(dt, 3 / (b.fade || 0.5));
+    b.w += (b.tw - b.w) * r; if (b.tw === 0 && b.w < 0.003) b.w = 0;
+    b.a.setEffectiveWeight(b.w * still);
+    b.a.timeScale = b.w > 0 ? 1 : 0;
+  }
+}
+function talkStart() { if (S.mode === 'idle') playBody(TALKS[Math.floor(Math.random() * TALKS.length)], 0.5); }
+function talkEnd() { if (S.mode === 'idle' && TALKS.includes(bodyCur)) playBody(pickIdle(), 0.7); }
 
 const WALK_SPEED = 0.85;   // um pouco mais calma que a animação original
 // ---------- comportamento: parada com movimentos sutis, e às vezes ela decide andar ----------
@@ -242,7 +303,6 @@ function behavior(dt) {
 }
 // mantém o pé que está apoiado no chão (a animação "no lugar" levanta um pouco o corpo)
 function grounding(dt) {
-  if (S.w <= 0.01) return;
   let c = Infinity;
   for (const n of FEET) if (bones[n] && footRest[n] !== undefined) c = Math.min(c, bones[n].getWorldPosition(_v).y - footRest[n]);
   if (isFinite(c)) S.y -= c * damp(dt, 12);
@@ -268,7 +328,7 @@ const EXPR = {
 function bodyUpdate(dt, t) {
   // eixos do corpo (lado e frente) conforme a direção em que ela está virada
   AXX.set(Math.cos(S.heading), 0, -Math.sin(S.heading)); AXZ.set(Math.sin(S.heading), 0, Math.cos(S.heading));
-  const still = 1 - S.w;
+  const still = 0.3 * (1 - S.w);
   // de vez em quando olha para outro lugar e volta para você
   G.next -= dt;
   if (performance.now() - heardAt < 3000) { G.tYaw = 0; G.tPitch = 0; }
@@ -375,10 +435,10 @@ function speak(text) {
   if (!window.speechSynthesis) return;
   const u = new SpeechSynthesisUtterance(text); u.lang = 'pt-BR'; u.rate = 0.95;
   const s = { text, idx: 0, tb: performance.now() }; speech = s; speaking = true;
-  pauseMic(); updateStatus();                                   // não escuta a própria voz
+  pauseMic(); updateStatus(); talkStart();                      // não escuta a própria voz; gesticula
   u.onboundary = (e) => { if (speech === s) { s.idx = e.charIndex; s.tb = performance.now(); } };
   u.onstart = () => { s.tb = performance.now(); };
-  u.onend = u.onerror = () => { if (speech === s) { speech = null; speaking = false; clearMouth(); updateStatus(); startMic(); } };
+  u.onend = u.onerror = () => { if (speech === s) { speech = null; speaking = false; clearMouth(); updateStatus(); startMic(); talkEnd(); } };
   speechSynthesis.speak(u);
 }
 function speechUpdate() {
@@ -445,6 +505,7 @@ if (!SR) say('Este navegador não reconhece voz. Use o Chrome para ela escutar.'
 // ---------- controles de teste ----------
 $('andar').onclick = () => { stopSpeech(); S.next = 0; startWalk(); };
 $('parar').onclick = () => stopSpeech();
+if ($('anim')) $('anim').onchange = (e) => { const n = e.target.value; if (n && S.mode === 'idle') { nextExtra = rand(30, 70); playBody(n, 0.4, true); } e.target.value = ''; };
 $('expr').onchange = (e) => { expr = EXPR[e.target.value] || {}; };
 $('boca').oninput = (e) => { manualJaw = e.target.value * 0.10; $('vBoca').textContent = e.target.value + '%'; };
 
@@ -457,7 +518,8 @@ function tick(dt, t) {
     placeRoot();
     // o mixer só reescreve um osso quando o valor muda; por isso desfaz os ajustes do quadro anterior antes
     for (const n of TOUCHED) { const b = bones[n]; if (b && baseQ[n]) b.quaternion.copy(baseQ[n]); }
-    mixer.update(dt);                 // pose base (repouso misturado com a caminhada)
+    bodyLayer(dt);
+    mixer.update(dt);                 // pose base (animações do corpo misturadas com a caminhada)
     for (const n of TOUCHED) { const b = bones[n]; if (b) (baseQ[n] = baseQ[n] || new THREE.Quaternion()).copy(b.quaternion); }
     bodyUpdate(dt, t);                // movimentos sutis por cima
     speechUpdate(); mouthUpdate(dt, t); blinkUpdate(dt);
@@ -472,4 +534,4 @@ function loop() {
   requestAnimationFrame(loop);
 }
 loop();
-window.__susbi = { get ready() { return !!mixer; }, S, get stride() { return stride; }, get yaw0() { return yaw0; }, get headY() { return headY; }, get floorY() { return floorY; }, cam, startWalk, bones, get mixer() { return mixer; }, get walk() { return walk; }, get model() { return model; }, step(n, dt) { for (let i = 0; i < n; i++) tick(dt, clock.elapsedTime += dt); } };
+window.__susbi = { get ready() { return !!mixer; }, S, get stride() { return stride; }, get yaw0() { return yaw0; }, get headY() { return headY; }, get floorY() { return floorY; }, cam, startWalk, bones, get mixer() { return mixer; }, get body() { return body; }, get walk() { return walk; }, get model() { return model; }, step(n, dt) { for (let i = 0; i < n; i++) tick(dt, clock.elapsedTime += dt); } };
