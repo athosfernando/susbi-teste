@@ -5,7 +5,7 @@ Página: `blender/index.html`. Ela abre o `susbi.glb` (4,1 MB), exportado da rev
 ## O que tem no modelo
 - **Corpo:** gerado no Meshy, reduzido para cerca de 159 mil triângulos, com as texturas do Meshy (cor, relevo, aspereza). Os filetes azuis do traje acendem.
 - **Cabeça:**
-  - formas da boca para a fala (`Fala O`, `Fala U`, `Fala E`, `Fala I`, `Fala M B P` e `Fala F V`), além de `Piscar` e `Respirar`;
+  - formas da boca para a fala (`Fala O`, `Fala U`, `Fala E`, `Fala I`, `Fala M B P` e `Fala F V`), além de `Piscar`, `Respirar` e `Sorriso`;
   - os pontos e as linhas do rosto ficam numa textura luminosa;
   - as linhas flutuantes de trás viraram tubos finos.
 - **Esqueleto** com nomes no padrão Mixamo (`mixamorig...`), incluindo dedos, mandíbula (`Jaw`) e olhos (`LeftEye` e `RightEye`).
@@ -18,6 +18,7 @@ Página: `blender/index.html`. Ela abre o `susbi.glb` (4,1 MB), exportado da rev
 - **Andar:** de vez em quando ela decide andar. A câmera abre para meio corpo ou corpo inteiro, ela vira, caminha até outro ponto, fica de frente e o close volta. Os pés ficam no chão: a velocidade acompanha a passada e o chão fica na altura da sola. O botão **Andar (teste)** força uma caminhada.
 - **Microfone:** fica sempre escutando (reconhecimento de voz do Chrome). O botão vermelho **Mudo** desliga. Enquanto ela fala, não escuta a si mesma. Sem IA conectada, por enquanto ela só repete o que ouviu, com a voz do navegador, para testar a boca.
 - **Traje:** mais claro e com reflexo (antes estava quase preto).
+- **Expressões:** sorriso suave novo no modelo; a expressão **Serena (busto)** copia o jeito do busto de 26/10 (olhos quase fechados, sorriso suave, cabeça baixa e inclinada). Parada, ela às vezes dá um sorriso leve.
 - **Controles de teste:** expressão e abrir a boca.
 
 ## Origem do corpo

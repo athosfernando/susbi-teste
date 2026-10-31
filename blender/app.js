@@ -89,7 +89,7 @@ function placeRoot() {
 }
 
 const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
-loader.load('susbi.glb?v=21', (gltf) => {
+loader.load('susbi.glb?v=22', (gltf) => {
   model = gltf.scene; scene.add(model);
   root = model.getObjectByName('SUSBI18_esqueleto') || model.children[0];
   R0.copy(root.quaternion);
@@ -260,8 +260,10 @@ function rotWorld(bone, axis, deg) {
 const AXY = new THREE.Vector3(0, 1, 0), AXX = new THREE.Vector3(), AXZ = new THREE.Vector3();
 let expr = {}, manualJaw = 0;
 const EXPR = {
-  neutra: {}, alegria: { E: 0.35, I: 0.35, nod: -3 }, surpresa: { jaw: 6, O: 0.55, nod: -2 },
+  neutra: {}, alegria: { sorriso: 1, E: 0.15, nod: -3 }, surpresa: { jaw: 6, O: 0.55, nod: -2 },
   tristeza: { U: 0.25, M: 0.25, nod: 7 }, atencao: { roll: 6, I: 0.15 },
+  // expressão do busto de 26/10: olhos quase fechados, sorriso suave, cabeça um pouco baixa e inclinada
+  serena: { sorriso: 0.75, lids: 0.5, nod: 6, roll: 4 },
 };
 function bodyUpdate(dt, t) {
   // eixos do corpo (lado e frente) conforme a direção em que ela está virada
@@ -323,8 +325,10 @@ function blinkUpdate(dt) {
     v = k < 0.35 ? k / 0.35 : 1 - (k - 0.35) / 0.65; v = v * v * (3 - 2 * v);
     if (k >= 1) { blinkT = -1; v = 0; }
   }
-  setMorph('Piscar', clamp(v, 0, 1));
+  lids += ((expr.lids || 0) - lids) * damp(dt, 3);
+  setMorph('Piscar', clamp(Math.max(v, lids), 0, 1));
 }
+let lids = 0, smile = 0, microSmile = 0, nextMicro = rand(8, 20);
 
 // ---------- boca ----------
 function setMorph(name, v) { if (head && morph[name] !== undefined) head.morphTargetInfluences[morph[name]] = v; }
@@ -341,6 +345,10 @@ function mouthUpdate(dt, t) {
   setMorph('Fala M B P', Math.min(1, W.M + (expr.M || 0)));
   setMorph('Fala F V', Math.min(1, W.F));
   rotWorld(bones.Jaw, AXX, W.jaw + (expr.jaw || 0) + manualJaw);
+  // sorriso: o da expressão + um sorriso leve de vez em quando, parada (menos enquanto fala)
+  nextMicro -= dt; if (nextMicro <= 0) { microSmile = microSmile > 0 ? 0 : rand(0.15, 0.35); nextMicro = microSmile > 0 ? rand(2, 5) : rand(10, 25); }
+  smile += ((expr.sorriso || 0) + (S.mode === 'idle' ? microSmile : 0) - smile) * damp(dt, 4);
+  setMorph('Sorriso', clamp(smile * (speaking ? 0.5 : 1), 0, 1));
 }
 
 // ---------- fala (voz provisória do navegador, só para testar a boca) ----------
