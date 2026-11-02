@@ -21,6 +21,11 @@ Página: `blender/index.html`. Ela abre o `susbi.glb` (4,1 MB), exportado da rev
 - **Expressões:** sorriso suave novo no modelo; a expressão **Serena (busto)** copia o jeito do busto de 26/10 (olhos quase fechados, sorriso suave, cabeça baixa e inclinada). Parada, ela às vezes dá um sorriso leve.
 - **Controles de teste:** expressão e abrir a boca.
 
+## Roupa: trilhas brancas e energia azul (v26)
+- Trilhas de placa mais que o dobro de densas (cerca de 4.900 contra 1.600), lado a lado, em **branco fosco**.
+- O **azul é a energia**: pulsos que correm pelas trilhas em momentos, pontos de partida, ritmos e sentidos sorteados para cada trilha, como sinapses. Os dois lados do corpo têm o mesmo desenho, mas a energia não espelha.
+- `corpo_dados.webp` guarda, para cada ponto da roupa, se é trilha, a posição ao longo dela e o número da trilha; a página anima os pulsos com isso.
+
 ## Roupa com estampa de circuito (v25)
 - A roupa agora é azul-marinho escura com trilhas de placa eletrônica acesas em ciano (trilhas retas com curvas de 45°, ilhas e vias nas pontas, pontinhos de luz), simétrica nos dois lados, como a SUSBI original.
 - A estampa é gerada por script (`v25_circuito.py`) e projetada no corpo pela frente, costas e lados (`v25_bake_circuito.py`).
