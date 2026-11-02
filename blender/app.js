@@ -1,8 +1,8 @@
-// SUSBI · teste do modelo feito no Blender (revisão 21) no navegador — página v22.
-// Abre direto no close do ombro para cima. Ela pisca sozinha em intervalos aleatórios, mexe a cabeça,
-// os olhos e o corpo de leve, e às vezes decide andar: a câmera abre para meio corpo ou corpo inteiro,
-// ela caminha até outro ponto, vira para a câmera e o close volta. O microfone fica sempre escutando,
-// com um botão para deixar mudo.
+// SUSBI · teste do modelo feito no Blender (revisão 21) no navegador — página v28.
+// Ela fica ocupada com as coisas dela, de corpo inteiro: anda, se alonga, olha ao redor, gesticula.
+// Quando você fala com ela (ou toca nela), ela termina o que está fazendo, vira para você e a câmera
+// se aproxima do rosto; sem conversa por um tempo, volta para a rotina. A câmera também pode ser girada,
+// aproximada e movida com o mouse ou os dedos. O microfone fica sempre escutando, com botão de mudo.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
@@ -11,6 +11,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('c'), stage = $('stage');
@@ -80,7 +81,7 @@ let yaw0 = 0, headY = 1.45, stride = 0.8, floorY = 0;
 const footRest = {};
 const FEET = ['LeftFoot', 'RightFoot', 'LeftToeBase', 'RightToeBase'];
 // estado do corpo: posição no chão, direção (0 = de frente para a câmera), peso da caminhada
-const S = { x: 0, z: 0, y: 0, heading: 0, w: 0, wT: 0, mode: 'idle', t: 0, next: rand(15, 35), goal: null, frame: 'close', hold: 0 };
+const S = { x: 0, z: 0, y: 0, heading: 0, w: 0, wT: 0, mode: 'idle', t: 0, next: 2, goal: null, frame: 'inteiro', hold: 0, atende: false, acenou: false, faceTo: 0 };
 
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _q = new THREE.Quaternion(), _pq = new THREE.Quaternion(), _ax = new THREE.Vector3();
 const wp = (o) => o.getWorldPosition(new THREE.Vector3());
@@ -98,13 +99,13 @@ loader.load('susbi.glb?v=27', (gltf) => {
     if (o.isMesh) {
       o.frustumCulled = false;
       const m = o.material;
-      if (m && m.name === 'SUSBI pele') { m.emissiveIntensity = 3.6; m.roughness = 0.6; m.envMapIntensity = 0.4; }
+      if (m && m.name === 'SUSBI pele') { m.emissiveIntensity = 3.6; m.roughness = 0.6; m.envMapIntensity = 0.4; golaPele(m); }
       if (m && m.name === 'SUSBI corpo') {
-        // traje preto que absorve a luz (sem reflexo) com trilhas de placa em branco fosco; o azul é a energia (v27)
+        // traje preto que absorve a luz (sem reflexo) com trilhas de placa em branco fosco; o azul é a energia
         m.color.setScalar(1.0); m.metalness = 0.0; m.metalnessMap = null; m.roughness = 1.0; m.envMap = envTex; m.envMapIntensity = 0.25;
         energiaTraje(m);
       }
-      if (m && m.name === 'SUSBI rede') m.emissiveIntensity = 1.6;
+      if (m && m.name === 'SUSBI rede') { m.emissiveIntensity = 1.6; golaPele(m); }
       if (m && m.name === 'SUSBI iris') m.emissiveIntensity = 0.9;
       if (m && m.name === 'SUSBI olho') m.envMapIntensity = 0.3;
       if (o.morphTargetDictionary && o.morphTargetDictionary['Piscar'] !== undefined) { head = o; morph = o.morphTargetDictionary; }
@@ -154,9 +155,10 @@ function finishSetup(anims) {
   for (const g of groundParts) g.position.y = floorY + (g.userData.dy || 0);
 
   stride = measureStride(wc);
+  medirGola();
   playBody(pickIdle(), 0);
-  setTimeout(() => { if (S.mode === 'idle' && !speaking) playBody('Big_Wave_Hello', 0.4, true); }, 1500);
-  setFrame('close', true);
+  S.next = rand(1.5, 3);                          // já começa ocupada com as coisas dela
+  setFrame('inteiro', true);
   $('loading').style.display = 'none';
   updateStatus();
   startMic();
@@ -182,23 +184,23 @@ function measureStride(clip) {
   return clamp(v, 0.3, 1.6);
 }
 
-// ---------- energia nas trilhas da roupa (v27) ----------
-// corpo_dados.webp guarda, para cada ponto da roupa: R+B = número da trilha (único em cada região do corpo)
-// e G = posição ao longo da trilha. A página sorteia poucos pulsos por região e só eles acendem:
-// cada braço e cada perna: 1 a 3 pulsos a cada ~5 s; tronco: 2 a 4 a cada 5 a 10 s. Hora, trilha e sentido ao acaso.
+// ---------- energia nas trilhas da roupa (v28) ----------
+// corpo_dados.webp: cada pedaço contínuo de trilha no corpo tem um número (R+B) e, em G, a posição ao longo
+// dele (0 numa ponta, 255 na outra). Um pulso escolhe um pedaço e corre de uma ponta à outra, com rastro.
+// Por região: cada braço e cada perna recebem 1 a 3 pulsos a cada ~5 s; o tronco, 2 a 4 a cada 5 a 10 s.
 const NP = 12;
 const ENERGIA = {
-  uTime: { value: 0 }, uData: { value: null }, uCor: { value: new THREE.Color(0.15, 0.72, 1.0) }, uForca: { value: 7.0 },
-  uP: { value: Array.from({ length: NP }, () => new THREE.Vector4(-1, 0, 1, 1)) },   // número, início, duração, sentido
-  uQ: { value: Array.from({ length: NP }, () => new THREE.Vector4(0, 1, 0, 0)) },    // trecho visível da trilha (início, fim)
+  uTime: { value: 0 }, uData: { value: null }, uCor: { value: new THREE.Color(0.15, 0.72, 1.0) }, uForca: { value: 9.0 },
+  uP: { value: Array.from({ length: NP }, () => new THREE.Vector4(-1, 0, 1, 1)) },   // pedaço, início, duração, sentido × comprimento (cm)
 };
 const REGIOES = {
   bracoE: { janela: [4, 6], qtd: [1, 3] }, bracoD: { janela: [4, 6], qtd: [1, 3] },
   pernaE: { janela: [4, 6], qtd: [1, 3] }, pernaD: { janela: [4, 6], qtd: [1, 3] },
   tronco: { janela: [5, 10], qtd: [2, 4] },
 };
+const RASTRO = 3.5;   // cm de rastro atrás da frente do pulso
 let TRILHAS = null; const filaPulsos = []; const proxJanela = {};
-fetch('pulsos.json?v=27').then((r) => r.json()).then((j) => { TRILHAS = j; }).catch(() => {});
+fetch('pulsos.json?v=28').then((r) => r.json()).then((j) => { TRILHAS = j; }).catch(() => {});
 function pulsos(t) {
   if (!TRILHAS) return;
   for (const [nome, R] of Object.entries(REGIOES)) {
@@ -209,23 +211,23 @@ function pulsos(t) {
     for (let i = 0; i < n; i++) filaPulsos.push({ nome, quando: t + rand(0, L) });
     proxJanela[nome] = t + L;
   }
-  const P = ENERGIA.uP.value, Q = ENERGIA.uQ.value;
+  const P = ENERGIA.uP.value;
   for (let k = filaPulsos.length - 1; k >= 0; k--) {
     if (filaPulsos[k].quando > t) continue;
     const lista = TRILHAS[filaPulsos.splice(k, 1)[0].nome]; if (!lista || !lista.length) continue;
     const livre = P.findIndex((p) => p.x < 0 || t > p.y + p.z); if (livre < 0) continue;
     let tr = null;
-    for (let tent = 0; tent < 6 && !tr; tent++) {             // prefere trilhas compridas, sem repetir uma acesa
-      const c = lista[Math.floor(Math.random() ** 1.6 * lista.length)];
+    for (let tent = 0; tent < 6 && !tr; tent++) {             // prefere pedaços compridos, sem repetir um aceso
+      const c = lista[Math.floor(Math.random() ** 1.5 * lista.length)];
       if (!P.some((p) => p.x === c[0] && t <= p.y + p.z)) tr = c;
     }
     if (!tr) continue;
-    P[livre].set(tr[0], t, rand(1.1, 2.2), Math.random() < 0.5 ? 1 : -1);
-    Q[livre].set(tr[1], tr[2], 0, 0);
+    const vel = rand(9, 16);                                  // cm por segundo: dá para ver a energia andando
+    P[livre].set(tr[0], t, (tr[1] + RASTRO * 2) / vel, (Math.random() < 0.5 ? 1 : -1) * tr[1]);
   }
 }
 function energiaTraje(m) {
-  const tex = new THREE.TextureLoader().load('corpo_dados.webp?v=27');
+  const tex = new THREE.TextureLoader().load('corpo_dados.webp?v=28');
   tex.flipY = false; tex.colorSpace = THREE.NoColorSpace; tex.generateMipmaps = false;
   tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter;
   ENERGIA.uData.value = tex;
@@ -233,7 +235,7 @@ function energiaTraje(m) {
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, ENERGIA);
     sh.fragmentShader = `uniform float uTime; uniform sampler2D uData; uniform vec3 uCor; uniform float uForca;
-      uniform vec4 uP[${NP}]; uniform vec4 uQ[${NP}];\n` + sh.fragmentShader
+      uniform vec4 uP[${NP}];\n` + sh.fragmentShader
       // preto que absorve a luz (sem brilho nenhum) e trilhas em branco fosco
       .replace('#include <map_fragment>', `#include <map_fragment>
       float mTr = smoothstep(0.03, 0.15, dot(diffuseColor.rgb, vec3(0.3333)));
@@ -246,21 +248,71 @@ function energiaTraje(m) {
       float pulso = 0.0;
       for (int i = 0; i < ${NP}; i++) {
         vec4 p = uP[i];
-        if (abs(p.x - id) > 0.5) continue;
+        if (id < 0.5 || abs(p.x - id) > 0.5) continue;
         float k = (uTime - p.y) / p.z;
         if (k < 0.0 || k > 1.0) continue;
-        vec4 q = uQ[i];
-        float span = max(q.y - q.x, 0.05);
-        float s = p.w > 0.0 ? (dd.g - q.x) / span : (q.y - dd.g) / span;   // 0 no começo do percurso, 1 no fim
-        float dist = (k * 1.35 - 0.1) - s;                                 // cabeça do pulso menos este ponto
-        float v = dist > 0.0 ? exp(-dist * 7.0) : exp(dist * 60.0);
-        pulso = max(pulso, v * smoothstep(0.0, 0.08, k) * (1.0 - smoothstep(0.88, 1.0, k)));
+        float L = abs(p.w);
+        float x = (p.w > 0.0 ? dd.g : 1.0 - dd.g) * L;          // cm desde a ponta onde o pulso nasce
+        float frente = k * (L + ${(RASTRO * 2).toFixed(1)}) - ${RASTRO.toFixed(1)};
+        float d = frente - x;                                    // > 0: atrás da frente (rastro)
+        float v = d > 0.0 ? exp(-d / ${(RASTRO / 2.5).toFixed(2)}) : exp(d / 0.35);
+        pulso = max(pulso, v);
       }
       totalEmissiveRadiance = uCor * (pulso * uForca);
     `);
   };
-  m.customProgramCacheKey = () => 'susbi-energia-v27';
+  m.customProgramCacheKey = () => 'susbi-energia-v28';
   m.needsUpdate = true;
+}
+
+// ---------- pescoço: a pele da cabeça escurece aos poucos abaixo do queixo até o preto da roupa ----------
+// A altura é medida ao longo do pescoço (do osso do pescoço para a cabeça), então acompanha os movimentos.
+const GOLA = { uNeckP: { value: new THREE.Vector3() }, uNeckUp: { value: new THREE.Vector3(0, 1, 0) }, uG0: { value: -1 }, uG1: { value: -0.9 } };
+function golaPele(m) {
+  if (m.userData.gola) return; m.userData.gola = true;      // material usado por mais de uma malha
+  const antes = m.onBeforeCompile;
+  m.onBeforeCompile = (sh, r) => {
+    if (antes) antes(sh, r);
+    Object.assign(sh.uniforms, GOLA);
+    sh.vertexShader = 'varying vec3 vGolaW;\n' + sh.vertexShader.replace('#include <skinning_vertex>', `#include <skinning_vertex>
+      vGolaW = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
+    sh.fragmentShader = 'varying vec3 vGolaW; uniform vec3 uNeckP; uniform vec3 uNeckUp; uniform float uG0; uniform float uG1;\n' + sh.fragmentShader
+      .replace('#include <map_fragment>', `#include <map_fragment>
+      float gola = 1.0 - smoothstep(uG0, uG1, dot(vGolaW - uNeckP, uNeckUp));
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.0015, 0.0018, 0.0025), gola);`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+      totalEmissiveRadiance *= 1.0 - gola;`)
+      .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+      reflectedLight.directSpecular *= 1.0 - gola; reflectedLight.indirectSpecular *= 1.0 - gola;`);
+  };
+  m.customProgramCacheKey = () => 'susbi-gola-' + m.name;
+  m.needsUpdate = true;
+}
+function medirGola() {
+  model.updateMatrixWorld(true);
+  const nP = wp(bones.Neck), up = wp(bones.Head).sub(nP).normalize();
+  let queixo = Infinity, roupa = -Infinity; const v = new THREE.Vector3(), d = new THREE.Vector3();
+  model.traverse((o) => {
+    if (!o.isSkinnedMesh) return;
+    const P = o.geometry.attributes.position, nm = o.material.name;
+    if (nm === 'SUSBI pele' && o.morphTargetDictionary && o.morphTargetDictionary['Fala O'] !== undefined) {
+      const M = o.geometry.morphAttributes.position[o.morphTargetDictionary['Fala O']];
+      for (let i = 0; i < P.count; i++) {
+        if (d.fromBufferAttribute(M, i).length() < 0.002) continue;        // só a boca e o queixo (o que mexe ao falar)
+        o.getVertexPosition(i, v).applyMatrix4(o.matrixWorld); queixo = Math.min(queixo, v.sub(nP).dot(up));
+      }
+    }
+    if (nm === 'SUSBI corpo') for (let i = 0; i < P.count; i += 2) { o.getVertexPosition(i, v).applyMatrix4(o.matrixWorld); roupa = Math.max(roupa, v.sub(nP).dot(up)); }
+  });
+  if (!isFinite(queixo) || !isFinite(roupa)) return;
+  GOLA.uG0.value = roupa - 0.002;                                       // preto total na borda da roupa
+  GOLA.uG1.value = Math.max(queixo - 0.003, roupa + 0.012);             // pele normal a partir do queixo
+  console.log('gola', { queixo: +queixo.toFixed(3), roupa: +roupa.toFixed(3) });
+}
+function golaUpdate() {
+  if (!bones.Neck || !bones.Head) return;
+  bones.Neck.getWorldPosition(GOLA.uNeckP.value);
+  bones.Head.getWorldPosition(GOLA.uNeckUp.value).sub(GOLA.uNeckP.value).normalize();
 }
 
 // ---------- câmera: close do ombro para cima; meio corpo ou corpo inteiro quando ela anda ----------
@@ -282,11 +334,30 @@ function frameTargets() {
   cam.wantTgt.set(ax, headY + f.ty * k, az + f.tz);
   cam.wantPos.set(ax, headY + f.py * k, az + f.tz + f.d * k);
 }
+// câmera com o mouse ou os dedos: arrastar gira, roda/pinça dá zoom, botão direito (ou dois dedos) move.
+// Mexeu na câmera, ela fica onde você deixou; volta para a automática no botão ou após 25 s sem mexer.
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.dampingFactor = 0.08; controls.screenSpacePanning = true;
+controls.minDistance = 0.3; controls.maxDistance = 9; controls.maxPolarAngle = 1.62; controls.zoomSpeed = 0.8;
+let camManual = false, interagindo = false, manualAte = 0;
+controls.addEventListener('start', () => { interagindo = true; manualAte = Infinity; $('dica').hidden = true; });
+controls.addEventListener('change', () => { if (interagindo && !camManual) { camManual = true; $('autoCam').hidden = false; } });
+controls.addEventListener('end', () => { interagindo = false; manualAte = performance.now() + 25000; });
+function camAutomatica() { camManual = false; cam.pos.copy(camera.position); cam.tgt.copy(controls.target); $('autoCam').hidden = true; }
+$('autoCam').onclick = camAutomatica;
+setTimeout(() => { $('dica').hidden = true; }, 12000);
 function cameraUpdate(dt) {
+  if (camManual) { controls.update(); if (performance.now() > manualAte) camAutomatica(); return; }
   frameTargets();
   const r = damp(dt, cam.rate);
   cam.pos.lerp(cam.wantPos, r); cam.tgt.lerp(cam.wantTgt, r);
   camera.position.copy(cam.pos); camera.lookAt(cam.tgt);
+  controls.target.copy(cam.tgt);
+}
+// tocar/clicar nela sem arrastar = chamar a atenção dela
+{ let pd = null;
+  canvas.addEventListener('pointerdown', (e) => { pd = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+  canvas.addEventListener('pointerup', (e) => { if (pd && Math.hypot(e.clientX - pd.x, e.clientY - pd.y) < 6 && performance.now() - pd.t < 400) atender(); pd = null; });
 }
 
 // ---------- camada do corpo (animações do Meshy) ----------
@@ -300,8 +371,10 @@ const NOMES = {
 };
 const IDLES = [['Idle_02', 5], ['Long_Breathe_and_Look_Around', 2]];   // Idle_03 é um alongamento: só no menu de teste
 const TALKS = ['Talk_with_Hands_Open', 'Talk_with_Right_Hand_Open', 'Stand_and_Chat'];
-const EXTRAS = [['Long_Breathe_and_Look_Around', 3], ['Shrug', 1], ['Confused_Scratch', 1], ['Listening_Gesture', 1]];
-let bodyCur = null, nextExtra = rand(25, 50);
+// rotina: toda animação que não é fala, parada, caminhada ou giro entra sozinha (inclusive as próximas que chegarem)
+const FORA_DA_ROTINA = /walk|run|strut|jog|sprint|turn|caminh|corr/i;
+function atividades() { return Object.keys(body).filter((n) => !TALKS.includes(n) && !IDLES.some(([i]) => i === n) && !FORA_DA_ROTINA.test(n) && n !== 'Big_Wave_Hello'); }
+let bodyCur = null;
 function pickW(list) { const ok = list.filter(([n]) => body[n]); let t = ok.reduce((a, [, w]) => a + w, 0) * Math.random(); for (const [n, w] of ok) { if ((t -= w) <= 0) return n; } return ok.length ? ok[0][0] : null; }
 function pickIdle() { return pickW(IDLES); }
 function playBody(name, fade = 0.5, once = false) {
@@ -310,6 +383,7 @@ function playBody(name, fade = 0.5, once = false) {
   for (const k in body) body[k].tw = 0;
   B.tw = 1; B.once = once; B.fade = Math.max(0.05, fade);
   if (bodyCur !== name || once) { B.a.time = 0; }
+  B.a.paused = false; B.a.enabled = true;          // um gesto que já terminou uma vez fica pausado: libera
   B.a.timeScale = 1; B.a.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, once ? 1 : Infinity); B.a.clampWhenFinished = once;
   if (fade === 0) B.w = 1;
   bodyCur = name;
@@ -323,7 +397,6 @@ function bodyLayer(dt) {
     const n = pickIdle(); if (n !== bodyCur) playBody(n, 0.8);   // terminou um ciclo: às vezes troca de variação
   }
   B.lastT = B.a.time;
-  if (!speaking && S.mode === 'idle') { nextExtra -= dt; if (nextExtra <= 0) { nextExtra = rand(30, 70); if (!B.once) playBody(pickW(EXTRAS), 0.7, true); } }
   const still = 1 - S.w;
   for (const k in body) {
     const b = body[k]; const r = damp(dt, 3 / (b.fade || 0.5));
@@ -332,11 +405,26 @@ function bodyLayer(dt) {
     b.a.timeScale = b.w > 0 ? 1 : 0;
   }
 }
-function talkStart() { if (S.mode === 'idle') playBody(TALKS[Math.floor(Math.random() * TALKS.length)], 0.5); }
+function talkStart() { if (S.mode === 'idle' && !(bodyCur && body[bodyCur].once)) playBody(TALKS[Math.floor(Math.random() * TALKS.length)], 0.5); }   // no meio de um gesto: termina antes
 function talkEnd() { if (S.mode === 'idle' && TALKS.includes(bodyCur)) playBody(pickIdle(), 0.7); }
 
 const WALK_SPEED = 0.85;   // um pouco mais calma que a animação original
-// ---------- comportamento: parada com movimentos sutis, e às vezes ela decide andar ----------
+// ---------- comportamento ----------
+// Livre: ela faz as coisas dela sozinha, de corpo inteiro (anda, gesticula, se alonga, olha ao redor).
+// Atendendo: quando você fala com ela ou toca nela, termina o gesto em curso, vira para você e a câmera
+// se aproxima do rosto. Depois de 25 s sem conversa, volta para a rotina.
+let ultimaConversa = -1e9;
+function atender() {
+  ultimaConversa = performance.now();
+  if (!S.atende) { S.atende = true; updateStatus(); }
+}
+const ocupada = () => !!(bodyCur && body[bodyCur] && body[bodyCur].once);   // no meio de um gesto
+function rotina() {
+  const r = Math.random(), at = atividades();
+  if (r < 0.35) { startWalk(); return; }
+  if (r < 0.85 && at.length) { const n = at[Math.floor(Math.random() * at.length)]; playBody(n, 0.6, true); S.next = clips[n].duration + rand(2, 6); return; }
+  playBody(pickIdle(), 0.8); S.next = rand(3, 7);                           // só fica parada, respirando, olhando ao redor
+}
 function startWalk() {
   if (S.mode !== 'idle' || !walk) return;
   const r = Math.hypot(S.x, S.z);
@@ -346,43 +434,54 @@ function startWalk() {
     else { gx = rand(-0.95, 0.95); gz = rand(-0.7, 0.3); }
   } while (Math.hypot(gx - S.x, gz - S.z) < 0.6 && ++tries < 20);
   S.goal = { x: gx, z: gz };
-  const dist = Math.hypot(gx - S.x, gz - S.z);
-  setFrame(dist > 0.9 || Math.random() < 0.5 ? 'inteiro' : 'meio');
+  S.faceTo = rand(-1.2, 1.2);                     // ao chegar, fica virada para um lado qualquer (ela está ocupada)
   S.mode = 'prep'; S.t = 0;
   G.tYaw = clamp(wrap(Math.atan2(gx - S.x, gz - S.z) - S.heading) / DEG, -25, 25); G.next = 2; // olha para onde vai
   updateStatus();
 }
 function behavior(dt) {
   S.t += dt;
-  const busy = speaking || (performance.now() - heardAt < 4000);
+  if (S.atende && !speaking && performance.now() - ultimaConversa > 25000) { S.atende = false; S.next = rand(2, 5); updateStatus(); }
+  const interrompe = () => { S.mode = 'face'; S.t = 0; S.wT = 0.55; };     // você chegou: para de andar e vira
   if (S.mode === 'idle') {
-    S.next -= dt;
-    if (S.next <= 0) { S.next = rand(15, 40); if (!busy && Math.random() < 0.45) startWalk(); }
-  } else if (S.mode === 'prep') {             // a câmera abre primeiro
-    if (S.t > 1.1) { S.mode = 'turn'; S.t = 0; walk.time = 0; S.wT = 0.6; }
+    if (S.atende) {
+      if (!ocupada() && Math.abs(wrap(0 - S.heading)) > 0.06) interrompe();
+      else if (!ocupada() && !S.acenou) { S.acenou = true; if (!speaking) playBody('Big_Wave_Hello', 0.4, true); }   // primeira vez: acena
+    } else {
+      S.next -= dt;
+      if (S.next <= 0 && !ocupada()) rotina();
+    }
+  } else if (S.mode === 'prep') {
+    if (S.atende) interrompe();
+    else if (S.t > 0.4) { S.mode = 'turn'; S.t = 0; walk.time = 0; S.wT = 0.6; }
   } else if (S.mode === 'turn') {             // vira no lugar para o destino
     const dh = wrap(Math.atan2(S.goal.x - S.x, S.goal.z - S.z) - S.heading);
     S.heading += clamp(dh, -2.2 * dt, 2.2 * dt);
-    if (Math.abs(dh) < 0.2 || S.t > 3) { S.mode = 'walk'; S.t = 0; S.wT = 1; }
+    if (S.atende) interrompe();
+    else if (Math.abs(dh) < 0.2 || S.t > 3) { S.mode = 'walk'; S.t = 0; S.wT = 1; }
   } else if (S.mode === 'walk') {
     const dx = S.goal.x - S.x, dz = S.goal.z - S.z, d = Math.hypot(dx, dz);
     const dh = wrap(Math.atan2(dx, dz) - S.heading);
     S.heading += clamp(dh, -2.4 * dt, 2.4 * dt);
     const v = stride * WALK_SPEED * S.w * Math.max(0.15, Math.cos(Math.min(Math.abs(dh), 1.4)));
     S.x += Math.sin(S.heading) * v * dt; S.z += Math.cos(S.heading) * v * dt;
-    if (d < 0.08 || S.t > 12) { S.mode = 'face'; S.t = 0; S.wT = 0.55; }
-  } else if (S.mode === 'face') {              // vira de frente para a câmera
-    const dh = wrap(0 - S.heading);
+    if (S.atende || d < 0.08 || S.t > 12) interrompe();
+  } else if (S.mode === 'face') {              // vira para você (atendendo) ou para um lado qualquer (livre)
+    const dh = wrap((S.atende ? 0 : (S.faceTo || 0)) - S.heading);
     S.heading += clamp(dh, -1.6 * dt, 1.6 * dt);
     if (Math.abs(dh) < 0.04 || S.t > 4) { S.mode = 'settle'; S.t = 0; S.wT = 0; }
-  } else if (S.mode === 'settle') {            // para, fica um instante no plano aberto e o close volta
-    if (S.w < 0.02 && S.t > rand(1.5, 2.5)) { S.mode = 'idle'; S.next = rand(15, 45); setFrame('close'); updateStatus(); }
+  } else if (S.mode === 'settle') {
+    if (S.w < 0.02 && S.t > 0.6) { S.mode = 'idle'; S.next = rand(2, 6); updateStatus(); }
   }
   S.w += (S.wT - S.w) * damp(dt, 4);
   if (S.w < 0.002 && S.wT === 0) S.w = 0;
   walk.setEffectiveWeight(S.w);
   walk.timeScale = S.w > 0.01 ? (S.mode === 'walk' ? WALK_SPEED : 0.75) : 0;
   if (S.w === 0) S.y += (0 - S.y) * damp(dt, 6);
+  // câmera: corpo inteiro na rotina; perto do rosto quando está atendendo você, de frente
+  let quer = 'inteiro';
+  if (S.atende && S.mode === 'idle' && Math.abs(wrap(S.heading)) < 0.2 && (!ocupada() || bodyCur === 'Big_Wave_Hello')) quer = bodyCur === 'Big_Wave_Hello' ? 'meio' : 'close';
+  if (S.frame !== quer) setFrame(quer);
 }
 // mantém o pé que está apoiado no chão (a animação "no lugar" levanta um pouco o corpo)
 function grounding(dt) {
@@ -414,12 +513,14 @@ function bodyUpdate(dt, t) {
   const still = 0.3 * (1 - S.w);
   // de vez em quando olha para outro lugar e volta para você
   G.next -= dt;
-  if (performance.now() - heardAt < 3000) { G.tYaw = 0; G.tPitch = 0; }
-  else if (G.next <= 0 && S.mode === 'idle') {
+  if (S.atende) {                                   // atendendo: olha para você, mesmo antes de virar o corpo
+    const a = wrap(Math.atan2(camera.position.x - S.x, camera.position.z - S.z) - S.heading) / DEG;
+    G.tYaw = clamp(a, -55, 55); G.tPitch = 0;
+  } else if (G.next <= 0 && S.mode === 'idle') {
     if (Math.random() < 0.55) { G.tYaw = 0; G.tPitch = 0; G.next = rand(2.5, 7); }
     else { G.tYaw = rand(-18, 18); G.tPitch = rand(-7, 4); G.next = rand(1.2, 3.5); if (Math.random() < 0.3) blinkNow(); }
   }
-  if (S.mode === 'walk' || S.mode === 'face' || S.mode === 'turn') { G.tYaw = 0; G.tPitch = 2; }
+  if (!S.atende && (S.mode === 'walk' || S.mode === 'face' || S.mode === 'turn')) { G.tYaw = 0; G.tPitch = 2; }
   G.yaw += (G.tYaw * 0.75 - G.yaw) * damp(dt, 3); G.pitch += (G.tPitch * 0.6 - G.pitch) * damp(dt, 3);
   // micro-movimentos dos olhos
   G.nextSacc -= dt; if (G.nextSacc <= 0) { G.sacc = rand(-2.5, 2.5); G.saccP = rand(-1.5, 1.5); G.nextSacc = rand(0.4, 2.2); }
@@ -518,7 +619,7 @@ function speak(text) {
   if (!window.speechSynthesis) return;
   const u = new SpeechSynthesisUtterance(text); u.lang = 'pt-BR'; u.rate = 0.95;
   const s = { text, idx: 0, tb: performance.now() }; speech = s; speaking = true;
-  pauseMic(); updateStatus(); talkStart();                      // não escuta a própria voz; gesticula
+  atender(); pauseMic(); updateStatus(); talkStart();                      // não escuta a própria voz; gesticula
   u.onboundary = (e) => { if (speech === s) { s.idx = e.charIndex; s.tb = performance.now(); } };
   u.onstart = () => { s.tb = performance.now(); };
   u.onend = u.onerror = () => { if (speech === s) { speech = null; speaking = false; clearMouth(); updateStatus(); startMic(); talkEnd(); } };
@@ -544,6 +645,7 @@ function startMic() {
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const tx = e.results[i][0].transcript.trim();
       if (!tx) continue;
+      atender();                                   // você começou a falar: ela vem te atender
       if (e.results[i].isFinal) heard(tx); else say('Você: ' + tx + '…');
     }
   };
@@ -568,7 +670,9 @@ function updateStatus() {
   let st = 'Pronta';
   if (!model) st = 'Carregando';
   else if (speaking) st = 'Falando';
+  else if (S.atende && S.mode !== 'idle') st = 'Vindo te atender';
   else if (S.mode !== 'idle') st = 'Andando';
+  else if (!S.atende) st = 'Ocupada (fale com ela)';
   else if (!SR) st = 'Sem reconhecimento de voz';
   else if (!micOn) st = 'Mudo';
   else if (micBlocked) st = 'Microfone bloqueado';
@@ -586,9 +690,9 @@ window.addEventListener('pointerdown', () => { if (micOn && micBlocked) { micBlo
 if (!SR) say('Este navegador não reconhece voz. Use o Chrome para ela escutar.');
 
 // ---------- controles de teste ----------
-$('andar').onclick = () => { stopSpeech(); S.next = 0; startWalk(); };
+$('andar').onclick = () => { stopSpeech(); S.atende = false; startWalk(); };
 $('parar').onclick = () => stopSpeech();
-if ($('anim')) $('anim').onchange = (e) => { const n = e.target.value; if (n && S.mode === 'idle') { nextExtra = rand(30, 70); playBody(n, 0.4, true); } e.target.value = ''; };
+if ($('anim')) $('anim').onchange = (e) => { const n = e.target.value; if (n && S.mode === 'idle') { playBody(n, 0.4, true); S.next = clips[n].duration + rand(3, 6); } e.target.value = ''; };
 $('expr').onchange = (e) => { expr = EXPR[e.target.value] || {}; };
 $('boca').oninput = (e) => { manualJaw = e.target.value * 0.10; $('vBoca').textContent = e.target.value + '%'; };
 
@@ -612,6 +716,7 @@ function tick(dt, t) {
     bodyUpdate(dt, t);                // movimentos sutis por cima
     speechUpdate(); mouthUpdate(dt, t); blinkUpdate(dt);
     model.updateMatrixWorld(true);
+    golaUpdate();
     grounding(dt);
     cameraUpdate(dt);
 }
@@ -622,4 +727,4 @@ function loop() {
   requestAnimationFrame(loop);
 }
 loop();
-window.__susbi = { get ready() { return !!mixer; }, S, get stride() { return stride; }, get yaw0() { return yaw0; }, get headY() { return headY; }, get floorY() { return floorY; }, cam, startWalk, bones, get mixer() { return mixer; }, get body() { return body; }, get walk() { return walk; }, get model() { return model; }, ENERGIA, get trilhas() { return TRILHAS; }, step(n, dt) { for (let i = 0; i < n; i++) tick(dt, clock.elapsedTime += dt); } };
+window.__susbi = { get ready() { return !!mixer; }, S, get stride() { return stride; }, get yaw0() { return yaw0; }, get headY() { return headY; }, get floorY() { return floorY; }, cam, startWalk, bones, get mixer() { return mixer; }, get body() { return body; }, get walk() { return walk; }, get model() { return model; }, ENERGIA, get trilhas() { return TRILHAS; }, atender, GOLA, controls, get camManual() { return camManual; }, step(n, dt) { for (let i = 0; i < n; i++) tick(dt, clock.elapsedTime += dt); } };

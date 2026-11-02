@@ -17,6 +17,8 @@
   .stage{position:relative;width:100%;aspect-ratio:9/16;max-height:72dvh;margin:0 auto;border:1px solid #0f3a52;border-radius:18px;overflow:hidden;background:#000}
   canvas{display:block;width:100%;height:100%}
   #loading{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:#02060dee;font-size:.9rem;color:var(--muted);text-align:center;padding:16px}
+  #autoCam{position:absolute;right:10px;bottom:10px;flex:none;min-height:36px;padding:6px 12px;font-size:.8rem;border-radius:18px;background:#06141fcc}
+  #dica{position:absolute;left:10px;bottom:12px;font-size:.72rem;color:#6c8fa1;pointer-events:none}
   #bar{width:60%;height:4px;background:#0c2433;border-radius:4px;overflow:hidden}#bar i{display:block;height:100%;width:0;background:var(--accent)}
   .say{min-height:2.6em;font-size:.92rem;line-height:1.4;margin:10px 2px;color:#bfe9ff}
   .row{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
@@ -32,15 +34,17 @@
 </head>
 <body>
 <main>
-  <header><h1>SUSBI <small>MODELO BLENDER v27</small></h1><span id="status">Carregando</span></header>
+  <header><h1>SUSBI <small>MODELO BLENDER v28</small></h1><span id="status">Carregando</span></header>
   <div class="stage" id="stage">
     <canvas id="c" aria-label="SUSBI em 3D"></canvas>
+    <button id="autoCam" type="button" hidden>🎥 Câmera automática</button>
+    <div id="dica">Arraste para girar · roda/pinça para zoom · botão direito para mover</div>
     <div id="loading"><div>Carregando a SUSBI…</div><div id="bar"><i></i></div><div id="loadMsg"></div></div>
   </div>
   <p class="say" id="say" aria-live="polite">Olá! Eu sou a SUSBI. Pode falar comigo.</p>
   <div class="row">
     <button id="mic" class="primary" type="button" aria-pressed="false">🎙️ Escutando</button>
-    <button id="andar" type="button">🚶 Andar (teste)</button>
+    <button id="andar" type="button">🚶 Andar</button>
     <button id="parar" type="button">■ Parar fala</button>
   </div>
   <label for="anim">Animação (teste)</label>
@@ -48,12 +52,12 @@
   <label for="expr">Expressão</label>
   <select id="expr"><option value="neutra">Neutra</option><option value="alegria">Alegria</option><option value="surpresa">Surpresa</option><option value="tristeza">Tristeza</option><option value="atencao">Atenção</option><option value="serena">Serena (busto)</option></select>
   <label for="boca">Abrir a boca (teste) <span id="vBoca">0%</span></label><input id="boca" type="range" min="0" max="100" value="0">
-  <footer>Protótipo de teste do modelo 3D (revisão 21, página v22): abre no close do ombro para cima; ela pisca sozinha, mexe a cabeça, os olhos e o corpo de leve e às vezes anda (a câmera abre). O microfone fica sempre escutando; use o botão para deixar mudo. Sem IA conectada: por enquanto ela só repete o que ouviu.<br>
+  <footer>Protótipo de teste do modelo 3D (página v28): ela fica ocupada com as coisas dela, de corpo inteiro (anda, se alonga, olha ao redor, gesticula). Quando você fala com ela ou toca nela, ela termina o que está fazendo, vira para você e a câmera se aproxima; depois de um tempo sem conversa, ela volta para a rotina. Use o mouse (ou os dedos) para girar, dar zoom e mover a câmera. O microfone fica sempre escutando; use o botão para deixar mudo. Sem IA conectada: por enquanto ela só repete o que ouviu.<br>
   Corpo gerado no Meshy a partir das referências da SUSBI; cabeça, rosto e animações feitos no Blender. · <a href="../3d/">Laboratório anterior</a></footer>
 </main>
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}
 </script>
-<script type="module" src="app.js?v=27"></script>
+<script type="module" src="app.js?v=28"></script>
 </body>
 </html>
