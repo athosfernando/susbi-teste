@@ -90,7 +90,7 @@ function placeRoot() {
 }
 
 const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
-loader.load('susbi.glb?v=25', (gltf) => {
+loader.load('susbi.glb?v=26', (gltf) => {
   model = gltf.scene; scene.add(model);
   root = model.getObjectByName('SUSBI18_esqueleto') || model.children[0];
   R0.copy(root.quaternion);
@@ -100,8 +100,9 @@ loader.load('susbi.glb?v=25', (gltf) => {
       const m = o.material;
       if (m && m.name === 'SUSBI pele') { m.emissiveIntensity = 3.6; m.roughness = 0.6; m.envMapIntensity = 0.4; }
       if (m && m.name === 'SUSBI corpo') {
-        // traje azul-marinho escuro com a estampa de circuito acesa (v25), como a SUSBI original
-        m.color.setScalar(0.9); m.metalness = 0.3; m.roughness = 1.0; m.envMap = envTex; m.envMapIntensity = 0.35; m.emissiveIntensity = 1.8;
+        // traje azul-marinho escuro com trilhas de placa em branco fosco; o azul é a energia que corre nelas (v26)
+        m.color.setScalar(1.0); m.metalness = 0.3; m.roughness = 1.0; m.envMap = envTex; m.envMapIntensity = 0.35;
+        energiaTraje(m);
       }
       if (m && m.name === 'SUSBI rede') m.emissiveIntensity = 1.6;
       if (m && m.name === 'SUSBI iris') m.emissiveIntensity = 0.9;
@@ -178,6 +179,41 @@ function measureStride(clip) {
   walk.setEffectiveWeight(0); walk.time = 0; mixer.update(0);
   const v = sp.length ? sp.reduce((a, b) => a + b, 0) / sp.length : 1.0;
   return clamp(v, 0.3, 1.6);
+}
+
+// ---------- energia nas trilhas da roupa ----------
+// corpo_dados.webp guarda, para cada ponto da roupa: R = é trilha, G = posição ao longo da trilha,
+// B = número sorteado da trilha. Com isso cada trilha recebe pulsos de energia no seu próprio ritmo,
+// começando em momentos, pontos e sentidos diferentes, como sinapses.
+const ENERGIA = { uTime: { value: 0 }, uData: { value: null }, uCor: { value: new THREE.Color(0.15, 0.72, 1.0) }, uForca: { value: 7.0 } };
+function energiaTraje(m) {
+  const tex = new THREE.TextureLoader().load('corpo_dados.webp?v=26');
+  tex.flipY = false; tex.colorSpace = THREE.NoColorSpace; tex.generateMipmaps = false;
+  tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter;
+  ENERGIA.uData.value = tex;
+  m.emissive.setRGB(1, 1, 1); m.emissiveMap = null;
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, ENERGIA);
+    sh.fragmentShader = 'uniform float uTime; uniform sampler2D uData; uniform vec3 uCor; uniform float uForca;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>', `
+      vec4 dd = texture2D(uData, vMapUv);
+      float trilha = smoothstep(0.25, 0.7, dd.r);
+      float id = dd.b * 255.0;
+      float h1 = fract(sin(id * 91.345 + 1.7) * 43758.5453);
+      float h2 = fract(sin(id * 12.989 + 4.1) * 24634.6345);
+      float h3 = fract(sin(id * 45.233 + 7.3) * 13579.2468);
+      float h4 = fract(sin(id * 78.111 + 2.9) * 31415.9265);
+      float T = mix(3.0, 14.0, h1);                       // ritmo próprio de cada trilha
+      float cyc = fract(uTime / T + h2);                 // momento próprio
+      float uu = h3 > 0.5 ? dd.g : 1.0 - dd.g;           // sentido próprio
+      float s0 = h4 > 0.55 ? (h4 - 0.55) * 1.6 : 0.0;    // às vezes nasce no meio da trilha
+      float head = s0 + cyc * (5.0 - s0) - 0.15;         // passa pela trilha e fica um tempo apagada
+      float dist = head - uu;
+      float pulso = uu < s0 - 0.02 ? 0.0 : (dist > 0.0 ? exp(-dist * 8.0) : exp(dist * 70.0));
+      totalEmissiveRadiance = uCor * (pulso * uForca) * trilha;
+    `);
+  };
+  m.customProgramCacheKey = () => 'susbi-energia-v26';
+  m.needsUpdate = true;
 }
 
 // ---------- câmera: close do ombro para cima; meio corpo ou corpo inteiro quando ela anda ----------
@@ -514,6 +550,7 @@ const clock = new THREE.Clock();
 const TOUCHED = ['Spine', 'Spine1', 'Spine2', 'LeftShoulder', 'RightShoulder', 'LeftArm', 'RightArm', 'Neck', 'Head', 'Jaw', 'LeftEye', 'RightEye'];
 const baseQ = {};
 function tick(dt, t) {
+    ENERGIA.uTime.value = t;
     behavior(dt);
     placeRoot();
     // o mixer só reescreve um osso quando o valor muda; por isso desfaz os ajustes do quadro anterior antes
