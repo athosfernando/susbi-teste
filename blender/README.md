@@ -21,6 +21,10 @@ Página: `blender/index.html`. Ela abre o `susbi.glb` (4,1 MB), exportado da rev
 - **Expressões:** sorriso suave novo no modelo; a expressão **Serena (busto)** copia o jeito do busto de 26/10 (olhos quase fechados, sorriso suave, cabeça baixa e inclinada). Parada, ela às vezes dá um sorriso leve.
 - **Controles de teste:** expressão e abrir a boca.
 
+## Roupa com estampa de circuito (v25)
+- A roupa agora é azul-marinho escura com trilhas de placa eletrônica acesas em ciano (trilhas retas com curvas de 45°, ilhas e vias nas pontas, pontinhos de luz), simétrica nos dois lados, como a SUSBI original.
+- A estampa é gerada por script (`v25_circuito.py`) e projetada no corpo pela frente, costas e lados (`v25_bake_circuito.py`).
+
 ## Animações do Meshy (v24)
 - `animacoes1.glb` (1,3 MB) traz as 20 primeiras animações do Meshy, já passadas para o esqueleto da SUSBI: parada, respirar e olhar ao redor, andar (4 tipos), correr, viradas, conversar e falar com gestos, concordar, escutar, acenar, encolher os ombros, coçar a cabeça e alongamento.
 - **Parada:** ela alterna entre as animações de parada e, de vez em quando, faz um gesto (olhar ao redor, encolher os ombros, coçar a cabeça, escutar).

@@ -90,7 +90,7 @@ function placeRoot() {
 }
 
 const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
-loader.load('susbi.glb?v=22', (gltf) => {
+loader.load('susbi.glb?v=25', (gltf) => {
   model = gltf.scene; scene.add(model);
   root = model.getObjectByName('SUSBI18_esqueleto') || model.children[0];
   R0.copy(root.quaternion);
@@ -100,8 +100,8 @@ loader.load('susbi.glb?v=22', (gltf) => {
       const m = o.material;
       if (m && m.name === 'SUSBI pele') { m.emissiveIntensity = 3.6; m.roughness = 0.6; m.envMapIntensity = 0.4; }
       if (m && m.name === 'SUSBI corpo') {
-        // traje mais claro e com reflexo, como a SUSBI original (antes estava quase preto: textura escura e 100% metal)
-        m.color.setScalar(1.45); m.metalness = 0.6; m.roughness = 1.0; m.envMap = envTex; m.envMapIntensity = 0.5; m.emissiveIntensity = 2.8;
+        // traje azul-marinho escuro com a estampa de circuito acesa (v25), como a SUSBI original
+        m.color.setScalar(0.9); m.metalness = 0.3; m.roughness = 1.0; m.envMap = envTex; m.envMapIntensity = 0.35; m.emissiveIntensity = 1.8;
       }
       if (m && m.name === 'SUSBI rede') m.emissiveIntensity = 1.6;
       if (m && m.name === 'SUSBI iris') m.emissiveIntensity = 0.9;
