@@ -90,7 +90,7 @@ function placeRoot() {
 }
 
 const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
-loader.load('susbi.glb?v=26', (gltf) => {
+loader.load('susbi.glb?v=27', (gltf) => {
   model = gltf.scene; scene.add(model);
   root = model.getObjectByName('SUSBI18_esqueleto') || model.children[0];
   R0.copy(root.quaternion);
@@ -100,8 +100,8 @@ loader.load('susbi.glb?v=26', (gltf) => {
       const m = o.material;
       if (m && m.name === 'SUSBI pele') { m.emissiveIntensity = 3.6; m.roughness = 0.6; m.envMapIntensity = 0.4; }
       if (m && m.name === 'SUSBI corpo') {
-        // traje azul-marinho escuro com trilhas de placa em branco fosco; o azul é a energia que corre nelas (v26)
-        m.color.setScalar(1.0); m.metalness = 0.3; m.roughness = 1.0; m.envMap = envTex; m.envMapIntensity = 0.35;
+        // traje preto que absorve a luz (sem reflexo) com trilhas de placa em branco fosco; o azul é a energia (v27)
+        m.color.setScalar(1.0); m.metalness = 0.0; m.metalnessMap = null; m.roughness = 1.0; m.envMap = envTex; m.envMapIntensity = 0.25;
         energiaTraje(m);
       }
       if (m && m.name === 'SUSBI rede') m.emissiveIntensity = 1.6;
@@ -120,6 +120,7 @@ loader.load('susbi.glb?v=26', (gltf) => {
   $('status').textContent = 'Erro';
 });
 function finishSetup(anims) {
+  for (const n of OMBROS) if (bones[n]) restQ[n] = bones[n].quaternion.clone();   // clavículas na posição natural do modelo
   mixer = new THREE.AnimationMixer(model);
   for (const c of anims) clips[c.name] = c;
   const wc = clips.Walking_Woman || anims.find((c) => /walk|caminhar/i.test(c.name));
@@ -181,38 +182,84 @@ function measureStride(clip) {
   return clamp(v, 0.3, 1.6);
 }
 
-// ---------- energia nas trilhas da roupa ----------
-// corpo_dados.webp guarda, para cada ponto da roupa: R = é trilha, G = posição ao longo da trilha,
-// B = número sorteado da trilha. Com isso cada trilha recebe pulsos de energia no seu próprio ritmo,
-// começando em momentos, pontos e sentidos diferentes, como sinapses.
-const ENERGIA = { uTime: { value: 0 }, uData: { value: null }, uCor: { value: new THREE.Color(0.15, 0.72, 1.0) }, uForca: { value: 7.0 } };
+// ---------- energia nas trilhas da roupa (v27) ----------
+// corpo_dados.webp guarda, para cada ponto da roupa: R+B = número da trilha (único em cada região do corpo)
+// e G = posição ao longo da trilha. A página sorteia poucos pulsos por região e só eles acendem:
+// cada braço e cada perna: 1 a 3 pulsos a cada ~5 s; tronco: 2 a 4 a cada 5 a 10 s. Hora, trilha e sentido ao acaso.
+const NP = 12;
+const ENERGIA = {
+  uTime: { value: 0 }, uData: { value: null }, uCor: { value: new THREE.Color(0.15, 0.72, 1.0) }, uForca: { value: 7.0 },
+  uP: { value: Array.from({ length: NP }, () => new THREE.Vector4(-1, 0, 1, 1)) },   // número, início, duração, sentido
+  uQ: { value: Array.from({ length: NP }, () => new THREE.Vector4(0, 1, 0, 0)) },    // trecho visível da trilha (início, fim)
+};
+const REGIOES = {
+  bracoE: { janela: [4, 6], qtd: [1, 3] }, bracoD: { janela: [4, 6], qtd: [1, 3] },
+  pernaE: { janela: [4, 6], qtd: [1, 3] }, pernaD: { janela: [4, 6], qtd: [1, 3] },
+  tronco: { janela: [5, 10], qtd: [2, 4] },
+};
+let TRILHAS = null; const filaPulsos = []; const proxJanela = {};
+fetch('pulsos.json?v=27').then((r) => r.json()).then((j) => { TRILHAS = j; }).catch(() => {});
+function pulsos(t) {
+  if (!TRILHAS) return;
+  for (const [nome, R] of Object.entries(REGIOES)) {
+    if (proxJanela[nome] === undefined) proxJanela[nome] = t + rand(0, R.janela[1]);   // cada região começa num momento diferente
+    if (t < proxJanela[nome]) continue;
+    const L = rand(R.janela[0], R.janela[1]);
+    const n = R.qtd[0] + Math.floor(Math.random() * (R.qtd[1] - R.qtd[0] + 1));
+    for (let i = 0; i < n; i++) filaPulsos.push({ nome, quando: t + rand(0, L) });
+    proxJanela[nome] = t + L;
+  }
+  const P = ENERGIA.uP.value, Q = ENERGIA.uQ.value;
+  for (let k = filaPulsos.length - 1; k >= 0; k--) {
+    if (filaPulsos[k].quando > t) continue;
+    const lista = TRILHAS[filaPulsos.splice(k, 1)[0].nome]; if (!lista || !lista.length) continue;
+    const livre = P.findIndex((p) => p.x < 0 || t > p.y + p.z); if (livre < 0) continue;
+    let tr = null;
+    for (let tent = 0; tent < 6 && !tr; tent++) {             // prefere trilhas compridas, sem repetir uma acesa
+      const c = lista[Math.floor(Math.random() ** 1.6 * lista.length)];
+      if (!P.some((p) => p.x === c[0] && t <= p.y + p.z)) tr = c;
+    }
+    if (!tr) continue;
+    P[livre].set(tr[0], t, rand(1.1, 2.2), Math.random() < 0.5 ? 1 : -1);
+    Q[livre].set(tr[1], tr[2], 0, 0);
+  }
+}
 function energiaTraje(m) {
-  const tex = new THREE.TextureLoader().load('corpo_dados.webp?v=26');
+  const tex = new THREE.TextureLoader().load('corpo_dados.webp?v=27');
   tex.flipY = false; tex.colorSpace = THREE.NoColorSpace; tex.generateMipmaps = false;
   tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter;
   ENERGIA.uData.value = tex;
   m.emissive.setRGB(1, 1, 1); m.emissiveMap = null;
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, ENERGIA);
-    sh.fragmentShader = 'uniform float uTime; uniform sampler2D uData; uniform vec3 uCor; uniform float uForca;\n' + sh.fragmentShader.replace('#include <emissivemap_fragment>', `
+    sh.fragmentShader = `uniform float uTime; uniform sampler2D uData; uniform vec3 uCor; uniform float uForca;
+      uniform vec4 uP[${NP}]; uniform vec4 uQ[${NP}];\n` + sh.fragmentShader
+      // preto que absorve a luz (sem brilho nenhum) e trilhas em branco fosco
+      .replace('#include <map_fragment>', `#include <map_fragment>
+      float mTr = smoothstep(0.03, 0.15, dot(diffuseColor.rgb, vec3(0.3333)));
+      diffuseColor.rgb = mix(vec3(0.0015, 0.0018, 0.0025), vec3(0.42), mTr);`)
+      .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+      reflectedLight.directSpecular = vec3(0.0); reflectedLight.indirectSpecular = vec3(0.0);`)
+      .replace('#include <emissivemap_fragment>', `
       vec4 dd = texture2D(uData, vMapUv);
-      float trilha = smoothstep(0.25, 0.7, dd.r);
-      float id = dd.b * 255.0;
-      float h1 = fract(sin(id * 91.345 + 1.7) * 43758.5453);
-      float h2 = fract(sin(id * 12.989 + 4.1) * 24634.6345);
-      float h3 = fract(sin(id * 45.233 + 7.3) * 13579.2468);
-      float h4 = fract(sin(id * 78.111 + 2.9) * 31415.9265);
-      float T = mix(3.0, 14.0, h1);                       // ritmo próprio de cada trilha
-      float cyc = fract(uTime / T + h2);                 // momento próprio
-      float uu = h3 > 0.5 ? dd.g : 1.0 - dd.g;           // sentido próprio
-      float s0 = h4 > 0.55 ? (h4 - 0.55) * 1.6 : 0.0;    // às vezes nasce no meio da trilha
-      float head = s0 + cyc * (5.0 - s0) - 0.15;         // passa pela trilha e fica um tempo apagada
-      float dist = head - uu;
-      float pulso = uu < s0 - 0.02 ? 0.0 : (dist > 0.0 ? exp(-dist * 8.0) : exp(dist * 70.0));
-      totalEmissiveRadiance = uCor * (pulso * uForca) * trilha;
+      float id = floor(dd.r * 255.0 + 0.5) * 256.0 + floor(dd.b * 255.0 + 0.5);
+      float pulso = 0.0;
+      for (int i = 0; i < ${NP}; i++) {
+        vec4 p = uP[i];
+        if (abs(p.x - id) > 0.5) continue;
+        float k = (uTime - p.y) / p.z;
+        if (k < 0.0 || k > 1.0) continue;
+        vec4 q = uQ[i];
+        float span = max(q.y - q.x, 0.05);
+        float s = p.w > 0.0 ? (dd.g - q.x) / span : (q.y - dd.g) / span;   // 0 no começo do percurso, 1 no fim
+        float dist = (k * 1.35 - 0.1) - s;                                 // cabeça do pulso menos este ponto
+        float v = dist > 0.0 ? exp(-dist * 7.0) : exp(dist * 60.0);
+        pulso = max(pulso, v * smoothstep(0.0, 0.08, k) * (1.0 - smoothstep(0.88, 1.0, k)));
+      }
+      totalEmissiveRadiance = uCor * (pulso * uForca);
     `);
   };
-  m.customProgramCacheKey = () => 'susbi-energia-v26';
+  m.customProgramCacheKey = () => 'susbi-energia-v27';
   m.needsUpdate = true;
 }
 
@@ -549,8 +596,11 @@ $('boca').oninput = (e) => { manualJaw = e.target.value * 0.10; $('vBoca').textC
 const clock = new THREE.Clock();
 const TOUCHED = ['Spine', 'Spine1', 'Spine2', 'LeftShoulder', 'RightShoulder', 'LeftArm', 'RightArm', 'Neck', 'Head', 'Jaw', 'LeftEye', 'RightEye'];
 const baseQ = {};
+// As animações do Meshy sobem as clavículas uns 25° acima do natural (ombro encolhido, parecendo ombreira).
+// Depois do mixer, puxa as clavículas de volta para perto da posição natural, guardando só 20% do movimento.
+const OMBROS = ['LeftShoulder', 'RightShoulder'], restQ = {}, OMBRO_FIXO = 0.8;
 function tick(dt, t) {
-    ENERGIA.uTime.value = t;
+    ENERGIA.uTime.value = t; pulsos(t);
     behavior(dt);
     placeRoot();
     // o mixer só reescreve um osso quando o valor muda; por isso desfaz os ajustes do quadro anterior antes
@@ -558,6 +608,7 @@ function tick(dt, t) {
     bodyLayer(dt);
     mixer.update(dt);                 // pose base (animações do corpo misturadas com a caminhada)
     for (const n of TOUCHED) { const b = bones[n]; if (b) (baseQ[n] = baseQ[n] || new THREE.Quaternion()).copy(b.quaternion); }
+    for (const n of OMBROS) { const b = bones[n]; if (b && restQ[n]) b.quaternion.slerp(restQ[n], OMBRO_FIXO); }
     bodyUpdate(dt, t);                // movimentos sutis por cima
     speechUpdate(); mouthUpdate(dt, t); blinkUpdate(dt);
     model.updateMatrixWorld(true);
@@ -571,4 +622,4 @@ function loop() {
   requestAnimationFrame(loop);
 }
 loop();
-window.__susbi = { get ready() { return !!mixer; }, S, get stride() { return stride; }, get yaw0() { return yaw0; }, get headY() { return headY; }, get floorY() { return floorY; }, cam, startWalk, bones, get mixer() { return mixer; }, get body() { return body; }, get walk() { return walk; }, get model() { return model; }, step(n, dt) { for (let i = 0; i < n; i++) tick(dt, clock.elapsedTime += dt); } };
+window.__susbi = { get ready() { return !!mixer; }, S, get stride() { return stride; }, get yaw0() { return yaw0; }, get headY() { return headY; }, get floorY() { return floorY; }, cam, startWalk, bones, get mixer() { return mixer; }, get body() { return body; }, get walk() { return walk; }, get model() { return model; }, ENERGIA, get trilhas() { return TRILHAS; }, step(n, dt) { for (let i = 0; i < n; i++) tick(dt, clock.elapsedTime += dt); } };
