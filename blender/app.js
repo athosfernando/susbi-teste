@@ -91,7 +91,7 @@ function placeRoot() {
 }
 
 const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
-loader.load('susbi.glb?v=33', (gltf) => {
+loader.load('susbi.glb?v=34', (gltf) => {
   model = gltf.scene; scene.add(model);
   root = model.getObjectByName('SUSBI_esqueleto') || model.getObjectByName('SmartRigArmature') || model.getObjectByName('SUSBI18_esqueleto') || model.children[0];
   R0.copy(root.quaternion);
@@ -117,7 +117,7 @@ loader.load('susbi.glb?v=33', (gltf) => {
     if (o.isBone) bones[o.name.replace('mixamorig', '')] = o;
   });
   // animações do Meshy ficam num arquivo separado e leve (lote 1: 20 animações)
-  loader.load('animacoes1.glb?v=32', (ag) => finishSetup(ag.animations), undefined, () => finishSetup(gltf.animations));
+  loader.load('animacoes1.glb?v=34', (ag) => finishSetup(ag.animations), undefined, () => finishSetup(gltf.animations));
 }, (e) => {
   if (e.total) $('bar').firstElementChild.style.width = Math.round((e.loaded / e.total) * 100) + '%';
 }, (err) => {
