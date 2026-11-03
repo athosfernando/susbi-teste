@@ -171,7 +171,7 @@ function finishSetup(anims) {
 
 // pacotes extras de animação (animacoes2.glb, animacoes3.glb, ...): carrega um por vez até não existir o próximo
 function maisAnimacoes(i) {
-  loader.load(`animacoes${i}.glb?v=32`, (ag) => {
+  loader.load(`animacoes${i}.glb?v=32b`, (ag) => {
     const sel = $('anim');
     for (const c of ag.animations) {
       if (clips[c.name]) continue;
@@ -420,7 +420,7 @@ const NOMES = {
 const IDLES = [['Idle_02', 5], ['Long_Breathe_and_Look_Around', 2]];   // Idle_03 é um alongamento: só no menu de teste
 const TALKS = ['Talk_with_Hands_Open', 'Talk_with_Right_Hand_Open', 'Stand_and_Chat'];
 // rotina: toda animação que não é fala, parada, caminhada ou giro entra sozinha (inclusive as próximas que chegarem)
-const FORA_DA_ROTINA = /walk|run|strut|jog|sprint|turn|caminh|corr/i;
+const FORA_DA_ROTINA = /walk|run|strut|jog|sprint|turn|caminh|corr|fight|sword|slash|shoot|gun|punch|kick|hook|uppercut|die|death|dead|fall|knock|strang|pain|sleep|lie|crawl|climb|jump|flip|roll|dodge|parry|throw|crouch|prone|push|situp|crunch|squat|burpee|curl|spell|axe|shield|takedown|slide|stumble|slash|swim|kneel|wall|dance|groove|ymca|golf|exercise|cardio|door|help|spin|leap|charge|guard|groan|stomach|wake|arise|sunbathe|desk|zombie|drunk|injur|hit|block|aim|bow_|reload|carry|pick|place|lift|drag/i;   // a rotina sozinha usa só movimentos calmos; o menu tem todos
 function atividades() { return Object.keys(body).filter((n) => !TALKS.includes(n) && !IDLES.some(([i]) => i === n) && !FORA_DA_ROTINA.test(n) && n !== 'Big_Wave_Hello'); }
 let bodyCur = null;
 function pickW(list) { const ok = list.filter(([n]) => body[n]); let t = ok.reduce((a, [, w]) => a + w, 0) * Math.random(); for (const [n, w] of ok) { if ((t -= w) <= 0) return n; } return ok.length ? ok[0][0] : null; }
