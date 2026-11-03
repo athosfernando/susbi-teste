@@ -160,12 +160,28 @@ function finishSetup(anims) {
 
   stride = measureStride(wc);
   medirGola();
+  maisAnimacoes(2);                               // os outros pacotes de animação chegam em segundo plano
   playBody(pickIdle(), 0);
   S.next = rand(1.5, 3);                          // já começa ocupada com as coisas dela
   setFrame('inteiro', true);
   $('loading').style.display = 'none';
   updateStatus();
   startMic();
+}
+
+// pacotes extras de animação (animacoes2.glb, animacoes3.glb, ...): carrega um por vez até não existir o próximo
+function maisAnimacoes(i) {
+  loader.load(`animacoes${i}.glb?v=32b`, (ag) => {
+    const sel = $('anim');
+    for (const c of ag.animations) {
+      if (clips[c.name]) continue;
+      clips[c.name] = c;
+      const a = mixer.clipAction(c); a.play(); a.setEffectiveWeight(0); a.timeScale = 0;
+      body[c.name] = { a, w: 0, tw: 0, once: false };
+      if (sel) { const o = document.createElement('option'); o.value = c.name; o.textContent = NOMES[c.name] || c.name.replace(/_/g, ' '); sel.appendChild(o); }
+    }
+    maisAnimacoes(i + 1);
+  }, undefined, () => console.log('animações carregadas:', Object.keys(clips).length));
 }
 
 // velocidade da caminhada: quanto o pé apoiado escorrega para trás na animação "no lugar".
@@ -270,13 +286,18 @@ function energiaTraje(m) {
 }
 
 // ---------- SUSBI nova: a luz do rosto apaga rapidinho ao piscar e pulsa ao falar ----------
-const ROSTO = { uHeadP: { value: new THREE.Vector3(0, -9, 0) }, uPisca: { value: 0 }, uFala: { value: 0 } };
+const ROSTO = { uHeadP: { value: new THREE.Vector3(0, -9, 0) }, uNeckP: { value: new THREE.Vector3(0, -9, 0) }, uPisca: { value: 0 }, uFala: { value: 0 } };
+const PELE_CLARA = 1.3;   // pele (cabeça e pescoço) 30% mais clara; a armadura não muda
 function rostoBrilho(m) {
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, ROSTO);
     sh.vertexShader = 'varying vec3 vRostoW;\n' + sh.vertexShader.replace('#include <skinning_vertex>', `#include <skinning_vertex>
       vRostoW = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
-    sh.fragmentShader = 'varying vec3 vRostoW; uniform vec3 uHeadP; uniform float uPisca; uniform float uFala;\n' + sh.fragmentShader
+    sh.fragmentShader = 'varying vec3 vRostoW; uniform vec3 uHeadP; uniform vec3 uNeckP; uniform float uPisca; uniform float uFala;\n' + sh.fragmentShader
+      .replace('#include <map_fragment>', `#include <map_fragment>
+      vec3 pa = vRostoW - uNeckP, ba = uHeadP - uNeckP;
+      float pele = 1.0 - smoothstep(0.095, 0.12, length(pa - ba * clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0)));
+      diffuseColor.rgb *= mix(1.0, ${PELE_CLARA.toFixed(2)}, pele);`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
       float naCabeca = 1.0 - smoothstep(0.11, 0.16, distance(vRostoW, uHeadP));
       totalEmissiveRadiance *= mix(1.0, (1.0 - 0.9 * uPisca) * (1.0 + 1.2 * uFala), naCabeca);`);
@@ -287,7 +308,7 @@ function rostoBrilho(m) {
 function rostoUpdate() {
   if (!bones.Head) return;
   const top = bones.HeadTop_End;
-  bones.Head.getWorldPosition(ROSTO.uHeadP.value);
+  bones.Head.getWorldPosition(ROSTO.uHeadP.value); if (bones.Neck) bones.Neck.getWorldPosition(ROSTO.uNeckP.value);
   if (top) ROSTO.uHeadP.value.lerp(top.getWorldPosition(_v), 0.5); else ROSTO.uHeadP.value.y += 0.09;
   ROSTO.uFala.value = clamp(W.jaw / 9, 0, 1);
 }
@@ -399,19 +420,21 @@ const NOMES = {
 const IDLES = [['Idle_02', 5], ['Long_Breathe_and_Look_Around', 2]];   // Idle_03 é um alongamento: só no menu de teste
 const TALKS = ['Talk_with_Hands_Open', 'Talk_with_Right_Hand_Open', 'Stand_and_Chat'];
 // rotina: toda animação que não é fala, parada, caminhada ou giro entra sozinha (inclusive as próximas que chegarem)
-const FORA_DA_ROTINA = /walk|run|strut|jog|sprint|turn|caminh|corr/i;
+const FORA_DA_ROTINA = /walk|run|strut|jog|sprint|turn|caminh|corr|fight|sword|slash|shoot|gun|punch|kick|hook|uppercut|die|death|dead|fall|knock|strang|pain|sleep|lie|crawl|climb|jump|flip|roll|dodge|parry|throw|crouch|prone|push|situp|crunch|squat|burpee|curl|spell|axe|shield|takedown|slide|stumble|slash|swim|kneel|wall|dance|groove|ymca|golf|exercise|cardio|door|help|spin|leap|charge|guard|groan|stomach|wake|arise|sunbathe|desk|zombie|drunk|injur|hit|block|aim|bow_|reload|carry|pick|place|lift|drag/i;   // a rotina sozinha usa só movimentos calmos; o menu tem todos
 function atividades() { return Object.keys(body).filter((n) => !TALKS.includes(n) && !IDLES.some(([i]) => i === n) && !FORA_DA_ROTINA.test(n) && n !== 'Big_Wave_Hello'); }
 let bodyCur = null;
 function pickW(list) { const ok = list.filter(([n]) => body[n]); let t = ok.reduce((a, [, w]) => a + w, 0) * Math.random(); for (const [n, w] of ok) { if ((t -= w) <= 0) return n; } return ok.length ? ok[0][0] : null; }
 function pickIdle() { return pickW(IDLES); }
-function playBody(name, fade = 0.5, once = false) {
+function playBody(name, fade = 0.5, once = false, minimo = 0) {   // minimo: repete o gesto até durar pelo menos isso (s)
   const B = body[name]; if (!B) return;
   if (bodyCur === name && !once) return;
   for (const k in body) body[k].tw = 0;
   B.tw = 1; B.once = once; B.fade = Math.max(0.05, fade);
   if (bodyCur !== name || once) { B.a.time = 0; }
   B.a.paused = false; B.a.enabled = true;          // um gesto que já terminou uma vez fica pausado: libera
-  B.a.timeScale = 1; B.a.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, once ? 1 : Infinity); B.a.clampWhenFinished = once;
+  const dur = B.a.getClip().duration, vezes = once ? Math.max(1, Math.ceil(minimo / Math.max(dur, 0.1))) : Infinity;
+  B.total = once ? dur * vezes : Infinity; B.passou = 0;
+  B.a.timeScale = 1; B.a.setLoop(once && vezes === 1 ? THREE.LoopOnce : THREE.LoopRepeat, vezes); B.a.clampWhenFinished = once;
   if (fade === 0) B.w = 1;
   bodyCur = name;
 }
@@ -419,7 +442,8 @@ function bodyLayer(dt) {
   if (!bodyCur) return;
   const B = body[bodyCur];
   // fim de um gesto (ou fim de um ciclo parada): volta para a parada / escolhe outra variação
-  if (B.once && B.a.time >= B.a.getClip().duration - 0.05) { playBody(speaking ? TALKS[Math.floor(Math.random() * TALKS.length)] : pickIdle(), 0.6); }
+  B.passou = (B.passou || 0) + dt;
+  if (B.once && B.passou >= B.total - 0.05) { playBody(speaking ? TALKS[Math.floor(Math.random() * TALKS.length)] : pickIdle(), 0.6); }
   else if (!speaking && S.mode === 'idle' && IDLES.some(([n]) => n === bodyCur) && B.lastT !== undefined && B.a.time < B.lastT && Math.random() < 0.3) {
     const n = pickIdle(); if (n !== bodyCur) playBody(n, 0.8);   // terminou um ciclo: às vezes troca de variação
   }
@@ -719,7 +743,7 @@ if (!SR) say('Este navegador não reconhece voz. Use o Chrome para ela escutar.'
 // ---------- controles de teste ----------
 $('andar').onclick = () => { stopSpeech(); S.atende = false; startWalk(); };
 $('parar').onclick = () => stopSpeech();
-if ($('anim')) $('anim').onchange = (e) => { const n = e.target.value; if (n && S.mode === 'idle') { playBody(n, 0.4, true); S.next = clips[n].duration + rand(3, 6); } e.target.value = ''; };
+if ($('anim')) $('anim').onchange = (e) => { const n = e.target.value; if (n && S.mode === 'idle') { playBody(n, 0.4, true, 6); S.next = body[n].total + rand(3, 6); } e.target.value = ''; };
 $('expr').onchange = (e) => { expr = EXPR[e.target.value] || {}; };
 $('boca').oninput = (e) => { manualJaw = e.target.value * 0.10; $('vBoca').textContent = e.target.value + '%'; };
 
