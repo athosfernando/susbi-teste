@@ -160,12 +160,28 @@ function finishSetup(anims) {
 
   stride = measureStride(wc);
   medirGola();
+  maisAnimacoes(2);                               // os outros pacotes de animação chegam em segundo plano
   playBody(pickIdle(), 0);
   S.next = rand(1.5, 3);                          // já começa ocupada com as coisas dela
   setFrame('inteiro', true);
   $('loading').style.display = 'none';
   updateStatus();
   startMic();
+}
+
+// pacotes extras de animação (animacoes2.glb, animacoes3.glb, ...): carrega um por vez até não existir o próximo
+function maisAnimacoes(i) {
+  loader.load(`animacoes${i}.glb?v=32`, (ag) => {
+    const sel = $('anim');
+    for (const c of ag.animations) {
+      if (clips[c.name]) continue;
+      clips[c.name] = c;
+      const a = mixer.clipAction(c); a.play(); a.setEffectiveWeight(0); a.timeScale = 0;
+      body[c.name] = { a, w: 0, tw: 0, once: false };
+      if (sel) { const o = document.createElement('option'); o.value = c.name; o.textContent = NOMES[c.name] || c.name.replace(/_/g, ' '); sel.appendChild(o); }
+    }
+    maisAnimacoes(i + 1);
+  }, undefined, () => console.log('animações carregadas:', Object.keys(clips).length));
 }
 
 // velocidade da caminhada: quanto o pé apoiado escorrega para trás na animação "no lugar".
@@ -270,13 +286,18 @@ function energiaTraje(m) {
 }
 
 // ---------- SUSBI nova: a luz do rosto apaga rapidinho ao piscar e pulsa ao falar ----------
-const ROSTO = { uHeadP: { value: new THREE.Vector3(0, -9, 0) }, uPisca: { value: 0 }, uFala: { value: 0 } };
+const ROSTO = { uHeadP: { value: new THREE.Vector3(0, -9, 0) }, uNeckP: { value: new THREE.Vector3(0, -9, 0) }, uPisca: { value: 0 }, uFala: { value: 0 } };
+const PELE_CLARA = 1.3;   // pele (cabeça e pescoço) 30% mais clara; a armadura não muda
 function rostoBrilho(m) {
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, ROSTO);
     sh.vertexShader = 'varying vec3 vRostoW;\n' + sh.vertexShader.replace('#include <skinning_vertex>', `#include <skinning_vertex>
       vRostoW = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
-    sh.fragmentShader = 'varying vec3 vRostoW; uniform vec3 uHeadP; uniform float uPisca; uniform float uFala;\n' + sh.fragmentShader
+    sh.fragmentShader = 'varying vec3 vRostoW; uniform vec3 uHeadP; uniform vec3 uNeckP; uniform float uPisca; uniform float uFala;\n' + sh.fragmentShader
+      .replace('#include <map_fragment>', `#include <map_fragment>
+      vec3 pa = vRostoW - uNeckP, ba = uHeadP - uNeckP;
+      float pele = 1.0 - smoothstep(0.095, 0.12, length(pa - ba * clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0)));
+      diffuseColor.rgb *= mix(1.0, ${PELE_CLARA.toFixed(2)}, pele);`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
       float naCabeca = 1.0 - smoothstep(0.11, 0.16, distance(vRostoW, uHeadP));
       totalEmissiveRadiance *= mix(1.0, (1.0 - 0.9 * uPisca) * (1.0 + 1.2 * uFala), naCabeca);`);
@@ -287,7 +308,7 @@ function rostoBrilho(m) {
 function rostoUpdate() {
   if (!bones.Head) return;
   const top = bones.HeadTop_End;
-  bones.Head.getWorldPosition(ROSTO.uHeadP.value);
+  bones.Head.getWorldPosition(ROSTO.uHeadP.value); if (bones.Neck) bones.Neck.getWorldPosition(ROSTO.uNeckP.value);
   if (top) ROSTO.uHeadP.value.lerp(top.getWorldPosition(_v), 0.5); else ROSTO.uHeadP.value.y += 0.09;
   ROSTO.uFala.value = clamp(W.jaw / 9, 0, 1);
 }
