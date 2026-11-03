@@ -562,7 +562,7 @@ function rotWorld(bone, axis, deg) {
   bone.parent.getWorldQuaternion(_pq); _ax.copy(axis).applyQuaternion(_pq.invert());
   bone.quaternion.premultiply(_q.setFromAxisAngle(_ax, deg * DEG));
 }
-const CABECA_ERGUER = -12;   // as animações deixam a cabeça deste esqueleto um pouco baixa: ergue (graus)
+const CABECA_ERGUER = 0;    // as animações deixam a cabeça deste esqueleto um pouco baixa: ergue (graus)
 const AXY = new THREE.Vector3(0, 1, 0), AXX = new THREE.Vector3(), AXZ = new THREE.Vector3();
 let expr = {}, manualJaw = 0;
 const EXPR = {
