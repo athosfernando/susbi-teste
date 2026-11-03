@@ -562,6 +562,7 @@ function rotWorld(bone, axis, deg) {
   bone.parent.getWorldQuaternion(_pq); _ax.copy(axis).applyQuaternion(_pq.invert());
   bone.quaternion.premultiply(_q.setFromAxisAngle(_ax, deg * DEG));
 }
+const CABECA_ERGUER = -12;   // as animações deixam a cabeça deste esqueleto um pouco baixa: ergue (graus)
 const AXY = new THREE.Vector3(0, 1, 0), AXX = new THREE.Vector3(), AXZ = new THREE.Vector3();
 let expr = {}, manualJaw = 0;
 const EXPR = {
@@ -578,7 +579,8 @@ function bodyUpdate(dt, t) {
   G.next -= dt;
   if (S.atende) {                                   // atendendo: olha para você, mesmo antes de virar o corpo
     const a = wrap(Math.atan2(camera.position.x - S.x, camera.position.z - S.z) - S.heading) / DEG;
-    G.tYaw = clamp(a, -55, 55); G.tPitch = 0;
+    G.tYaw = clamp(a, -55, 55);
+    if (bones.Head) { bones.Head.getWorldPosition(_v); const dy = camera.position.y - _v.y, dh = Math.hypot(camera.position.x - _v.x, camera.position.z - _v.z); G.tPitch = clamp(-Math.atan2(dy, dh) / DEG, -20, 20) / 0.6; }   // olha para a câmera também na altura
   } else if (G.next <= 0 && S.mode === 'idle') {
     if (Math.random() < 0.55) { G.tYaw = 0; G.tPitch = 0; G.next = rand(2.5, 7); }
     else { G.tYaw = rand(-18, 18); G.tPitch = rand(-7, 4); G.next = rand(1.2, 3.5); if (Math.random() < 0.3) blinkNow(); }
@@ -605,7 +607,7 @@ function bodyUpdate(dt, t) {
   }
   // cabeça: segue o olhar + balanço lento + pequenos acenos quando fala
   const yaw = G.yaw + 3.0 * nz(t, 8, 0.9);
-  const pitch = G.pitch + 1.6 * nz(t, 9) + (expr.nod || 0) + talk * 1.4 * Math.sin(t * 3.3) * Math.sin(t * 0.9);
+  const pitch = G.pitch + 1.6 * nz(t, 9) + (expr.nod || 0) + talk * 1.4 * Math.sin(t * 3.3) * Math.sin(t * 0.9) + CABECA_ERGUER;
   const roll = 2.2 * nz(t, 10, 0.8) + (expr.roll || 0) + talk * 1.2 * Math.sin(t * 1.7);
   rotWorld(bones.Neck, AXY, yaw * 0.35); rotWorld(bones.Head, AXY, yaw * 0.65);
   rotWorld(bones.Neck, AXX, pitch * 0.3); rotWorld(bones.Head, AXX, pitch * 0.7);
