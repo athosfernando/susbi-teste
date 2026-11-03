@@ -117,7 +117,7 @@ loader.load('susbi.glb?v=34d', (gltf) => {
     if (o.isBone) bones[o.name.replace('mixamorig', '')] = o;
   });
   // animações do Meshy ficam num arquivo separado e leve (lote 1: 20 animações)
-  loader.load('animacoes1.glb?v=34', (ag) => finishSetup(ag.animations), undefined, () => finishSetup(gltf.animations));
+  loader.load('animacoes1.glb?v=34f', (ag) => finishSetup(ag.animations), undefined, () => finishSetup(gltf.animations));
 }, (e) => {
   if (e.total) $('bar').firstElementChild.style.width = Math.round((e.loaded / e.total) * 100) + '%';
 }, (err) => {
@@ -171,7 +171,7 @@ function finishSetup(anims) {
 
 // pacotes extras de animação (animacoes2.glb, animacoes3.glb, ...): carrega um por vez até não existir o próximo
 function maisAnimacoes(i) {
-  loader.load(`animacoes${i}.glb?v=34`, (ag) => {
+  loader.load(`animacoes${i}.glb?v=34f`, (ag) => {
     const sel = $('anim');
     for (const c of ag.animations) {
       if (clips[c.name]) continue;
@@ -562,7 +562,7 @@ function rotWorld(bone, axis, deg) {
   bone.parent.getWorldQuaternion(_pq); _ax.copy(axis).applyQuaternion(_pq.invert());
   bone.quaternion.premultiply(_q.setFromAxisAngle(_ax, deg * DEG));
 }
-const CABECA_ERGUER = -12;   // as animações deixam a cabeça deste esqueleto um pouco baixa: ergue (graus)
+const CABECA_ERGUER = 0;    // as animações deixam a cabeça deste esqueleto um pouco baixa: ergue (graus)
 const AXY = new THREE.Vector3(0, 1, 0), AXX = new THREE.Vector3(), AXZ = new THREE.Vector3();
 let expr = {}, manualJaw = 0;
 const EXPR = {
