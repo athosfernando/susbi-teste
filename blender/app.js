@@ -137,7 +137,7 @@ function finishSetup(anims) {
     body[n] = { a, w: 0, tw: 0, once: false };
   }
   const sel = $('anim');
-  if (sel) { for (const n of Object.keys(clips).sort()) { const o = document.createElement('option'); o.value = n; o.textContent = NOMES[n] || n; sel.appendChild(o); } }
+  if (sel) { for (const n of Object.keys(clips).sort()) { const o = document.createElement('option'); o.value = n; o.textContent = NOMES[n] || n; sel.appendChild(o); } ordenarMenu(); }
 
   // para onde o corpo olha no repouso (do calcanhar para a ponta do pé)
   root.position.set(0, 0, 0); root.quaternion.copy(R0); mixer.update(0); model.updateMatrixWorld(true);
@@ -180,6 +180,7 @@ function maisAnimacoes(i) {
       body[c.name] = { a, w: 0, tw: 0, once: false };
       if (sel) { const o = document.createElement('option'); o.value = c.name; o.textContent = NOMES[c.name] || c.name.replace(/_/g, ' '); sel.appendChild(o); }
     }
+    ordenarMenu();
     maisAnimacoes(i + 1);
   }, undefined, () => console.log('animações carregadas:', Object.keys(clips).length));
 }
@@ -417,9 +418,16 @@ const NOMES = {
   Talk_with_Right_Hand_Open: 'Falar com a mão direita', Agree_Gesture: 'Concordar', Listening_Gesture: 'Escutar', Big_Wave_Hello: 'Acenar olá',
   Shrug: 'Encolher os ombros', Confused_Scratch: 'Coçar a cabeça (confusa)',
 };
+// menu em ordem alfabética (português), mantendo "Escolha para ver…" no topo
+function ordenarMenu() {
+  const sel = $('anim'); if (!sel) return;
+  const ops = [...sel.options].filter((o) => o.value).sort((a, b) => a.textContent.localeCompare(b.textContent, 'pt', { sensitivity: 'base', numeric: true }));
+  for (const o of ops) sel.appendChild(o);
+}
 fetch('nomes.json?v=32').then((r) => r.json()).then((j) => {   // nomes em português dos ~500 movimentos
   Object.assign(NOMES, j);
   for (const o of document.querySelectorAll('#anim option')) if (o.value && NOMES[o.value]) o.textContent = NOMES[o.value];
+  ordenarMenu();
 }).catch(() => {});
 const IDLES = [['Idle_02', 5], ['Long_Breathe_and_Look_Around', 2]];   // Idle_03 é um alongamento: só no menu de teste
 const TALKS = ['Talk_with_Hands_Open', 'Talk_with_Right_Hand_Open', 'Stand_and_Chat'];
