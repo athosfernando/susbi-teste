@@ -91,15 +91,19 @@ function placeRoot() {
 }
 
 const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
-loader.load('susbi.glb?v=27', (gltf) => {
+loader.load('susbi.glb?v=30', (gltf) => {
   model = gltf.scene; scene.add(model);
-  root = model.getObjectByName('SUSBI18_esqueleto') || model.children[0];
+  root = model.getObjectByName('SUSBI_esqueleto') || model.getObjectByName('SmartRigArmature') || model.getObjectByName('SUSBI18_esqueleto') || model.children[0];
   R0.copy(root.quaternion);
   model.traverse((o) => {
     if (o.isMesh) {
       o.frustumCulled = false;
       const m = o.material;
       if (m && m.name === 'SUSBI pele') { m.emissiveIntensity = 3.6; m.roughness = 0.6; m.envMapIntensity = 0.4; golaPele(m); }
+      if (m && (m.name === 'SUSBI corpo2' || m.name === 'SUSBI cabeca2')) {         // SUSBI nova (Meshy): linhas ciano brilham; relevo pelo mapa de normais
+        m.emissiveIntensity = 2.6; m.envMap = envTex; m.envMapIntensity = 0.35; m.normalScale.set(1, 1);
+        rostoBrilho(m);
+      }
       if (m && m.name === 'SUSBI corpo') {
         // traje preto que absorve a luz (sem reflexo) com trilhas de placa em branco fosco; o azul é a energia
         m.color.setScalar(1.0); m.metalness = 0.0; m.metalnessMap = null; m.roughness = 1.0; m.envMap = envTex; m.envMapIntensity = 0.25;
@@ -113,7 +117,7 @@ loader.load('susbi.glb?v=27', (gltf) => {
     if (o.isBone) bones[o.name.replace('mixamorig', '')] = o;
   });
   // animações do Meshy ficam num arquivo separado e leve (lote 1: 20 animações)
-  loader.load('animacoes1.glb?v=1', (ag) => finishSetup(ag.animations), undefined, () => finishSetup(gltf.animations));
+  loader.load('animacoes1.glb?v=30', (ag) => finishSetup(ag.animations), undefined, () => finishSetup(gltf.animations));
 }, (e) => {
   if (e.total) $('bar').firstElementChild.style.width = Math.round((e.loaded / e.total) * 100) + '%';
 }, (err) => {
@@ -147,7 +151,7 @@ function finishSetup(anims) {
   // chão na altura da sola do corpo
   let sole = Infinity;
   model.traverse((o) => {
-    if (!o.isMesh || !o.material || o.material.name !== 'SUSBI corpo') return;
+    if (!o.isSkinnedMesh) return;
     let b; if (o.isSkinnedMesh) { o.computeBoundingBox(); b = o.boundingBox.clone(); } else { o.geometry.computeBoundingBox(); b = o.geometry.boundingBox.clone(); }
     sole = Math.min(sole, b.applyMatrix4(o.matrixWorld).min.y);
   });
@@ -263,6 +267,29 @@ function energiaTraje(m) {
   };
   m.customProgramCacheKey = () => 'susbi-energia-v28';
   m.needsUpdate = true;
+}
+
+// ---------- SUSBI nova: a luz do rosto apaga rapidinho ao piscar e pulsa ao falar ----------
+const ROSTO = { uHeadP: { value: new THREE.Vector3(0, -9, 0) }, uPisca: { value: 0 }, uFala: { value: 0 } };
+function rostoBrilho(m) {
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, ROSTO);
+    sh.vertexShader = 'varying vec3 vRostoW;\n' + sh.vertexShader.replace('#include <skinning_vertex>', `#include <skinning_vertex>
+      vRostoW = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
+    sh.fragmentShader = 'varying vec3 vRostoW; uniform vec3 uHeadP; uniform float uPisca; uniform float uFala;\n' + sh.fragmentShader
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+      float naCabeca = 1.0 - smoothstep(0.11, 0.16, distance(vRostoW, uHeadP));
+      totalEmissiveRadiance *= mix(1.0, (1.0 - 0.9 * uPisca) * (1.0 + 1.2 * uFala), naCabeca);`);
+  };
+  m.customProgramCacheKey = () => 'susbi-rosto';
+  m.needsUpdate = true;
+}
+function rostoUpdate() {
+  if (!bones.Head) return;
+  const top = bones.HeadTop_End;
+  bones.Head.getWorldPosition(ROSTO.uHeadP.value);
+  if (top) ROSTO.uHeadP.value.lerp(top.getWorldPosition(_v), 0.5); else ROSTO.uHeadP.value.y += 0.09;
+  ROSTO.uFala.value = clamp(W.jaw / 9, 0, 1);
 }
 
 // ---------- pescoço: a pele da cabeça escurece aos poucos abaixo do queixo até o preto da roupa ----------
@@ -570,7 +597,7 @@ function blinkUpdate(dt) {
     if (k >= 1) { blinkT = -1; v = 0; }
   }
   lids += ((expr.lids || 0) - lids) * damp(dt, 3);
-  setMorph('Piscar', clamp(Math.max(v, lids), 0, 1));
+  setMorph('Piscar', clamp(Math.max(v, lids), 0, 1)); ROSTO.uPisca.value = clamp(v, 0, 1);
 }
 let lids = 0, smile = 0, microSmile = 0, nextMicro = rand(8, 20);
 
@@ -716,7 +743,7 @@ function tick(dt, t) {
     bodyUpdate(dt, t);                // movimentos sutis por cima
     speechUpdate(); mouthUpdate(dt, t); blinkUpdate(dt);
     model.updateMatrixWorld(true);
-    golaUpdate();
+    golaUpdate(); rostoUpdate();
     grounding(dt);
     cameraUpdate(dt);
 }
