@@ -171,7 +171,7 @@ function finishSetup(anims) {
 
 // pacotes extras de animação (animacoes2.glb, animacoes3.glb, ...): carrega um por vez até não existir o próximo
 function maisAnimacoes(i) {
-  loader.load(`animacoes${i}.glb?v=32b`, (ag) => {
+  loader.load(`animacoes${i}.glb?v=34`, (ag) => {
     const sel = $('anim');
     for (const c of ag.animations) {
       if (clips[c.name]) continue;
@@ -789,7 +789,7 @@ function punhoUpdate(dt) {
       const b = bones[s + 'Hand' + f + k], c = bones[s + 'Hand' + f + (k + 1)] || null; if (!b) continue;
       b.getWorldPosition(_t); (c ? c.getWorldPosition(_d) : _d.copy(_t).addScaledVector(_t.clone().sub(_h).normalize(), 0.02)).sub(_t).normalize();
       _a.crossVectors(_d, _n).normalize();
-      const ang = (f === 'Thumb' ? [25, 35, 30][k - 1] : [80, 95, 70][k - 1]) * punho.w;
+      const ang = (f === 'Thumb' ? [15, 25, 20][k - 1] : [60, 70, 50][k - 1]) * punho.w;
       rotWorld(b, _a, ang); b.updateMatrixWorld(true);
     }
   }
