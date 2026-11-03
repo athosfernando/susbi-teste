@@ -425,14 +425,16 @@ function atividades() { return Object.keys(body).filter((n) => !TALKS.includes(n
 let bodyCur = null;
 function pickW(list) { const ok = list.filter(([n]) => body[n]); let t = ok.reduce((a, [, w]) => a + w, 0) * Math.random(); for (const [n, w] of ok) { if ((t -= w) <= 0) return n; } return ok.length ? ok[0][0] : null; }
 function pickIdle() { return pickW(IDLES); }
-function playBody(name, fade = 0.5, once = false) {
+function playBody(name, fade = 0.5, once = false, minimo = 0) {   // minimo: repete o gesto até durar pelo menos isso (s)
   const B = body[name]; if (!B) return;
   if (bodyCur === name && !once) return;
   for (const k in body) body[k].tw = 0;
   B.tw = 1; B.once = once; B.fade = Math.max(0.05, fade);
   if (bodyCur !== name || once) { B.a.time = 0; }
   B.a.paused = false; B.a.enabled = true;          // um gesto que já terminou uma vez fica pausado: libera
-  B.a.timeScale = 1; B.a.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, once ? 1 : Infinity); B.a.clampWhenFinished = once;
+  const dur = B.a.getClip().duration, vezes = once ? Math.max(1, Math.ceil(minimo / Math.max(dur, 0.1))) : Infinity;
+  B.total = once ? dur * vezes : Infinity; B.passou = 0;
+  B.a.timeScale = 1; B.a.setLoop(once && vezes === 1 ? THREE.LoopOnce : THREE.LoopRepeat, vezes); B.a.clampWhenFinished = once;
   if (fade === 0) B.w = 1;
   bodyCur = name;
 }
@@ -440,7 +442,8 @@ function bodyLayer(dt) {
   if (!bodyCur) return;
   const B = body[bodyCur];
   // fim de um gesto (ou fim de um ciclo parada): volta para a parada / escolhe outra variação
-  if (B.once && B.a.time >= B.a.getClip().duration - 0.05) { playBody(speaking ? TALKS[Math.floor(Math.random() * TALKS.length)] : pickIdle(), 0.6); }
+  B.passou = (B.passou || 0) + dt;
+  if (B.once && B.passou >= B.total - 0.05) { playBody(speaking ? TALKS[Math.floor(Math.random() * TALKS.length)] : pickIdle(), 0.6); }
   else if (!speaking && S.mode === 'idle' && IDLES.some(([n]) => n === bodyCur) && B.lastT !== undefined && B.a.time < B.lastT && Math.random() < 0.3) {
     const n = pickIdle(); if (n !== bodyCur) playBody(n, 0.8);   // terminou um ciclo: às vezes troca de variação
   }
@@ -740,7 +743,7 @@ if (!SR) say('Este navegador não reconhece voz. Use o Chrome para ela escutar.'
 // ---------- controles de teste ----------
 $('andar').onclick = () => { stopSpeech(); S.atende = false; startWalk(); };
 $('parar').onclick = () => stopSpeech();
-if ($('anim')) $('anim').onchange = (e) => { const n = e.target.value; if (n && S.mode === 'idle') { playBody(n, 0.4, true); S.next = clips[n].duration + rand(3, 6); } e.target.value = ''; };
+if ($('anim')) $('anim').onchange = (e) => { const n = e.target.value; if (n && S.mode === 'idle') { playBody(n, 0.4, true, 6); S.next = body[n].total + rand(3, 6); } e.target.value = ''; };
 $('expr').onchange = (e) => { expr = EXPR[e.target.value] || {}; };
 $('boca').oninput = (e) => { manualJaw = e.target.value * 0.10; $('vBoca').textContent = e.target.value + '%'; };
 
