@@ -124,7 +124,12 @@ loader.load('susbi.glb?v=34d', (gltf) => {
   $('loadMsg').textContent = 'Não foi possível carregar o modelo: ' + (err && err.message ? err.message : err);
   $('status').textContent = 'Erro';
 });
+// dedos: as animações convertidas trazem curvaturas de dedo tortas (gravadas em outra mão); os dedos ficam
+// relaxados como no modelo e só fecham em punho pelo ajuste automático nos movimentos de luta
+const DEDO_TRILHA = /Hand(Thumb|Index|Middle|Ring|Pinky)\d/;
+function semDedos(c) { c.tracks = c.tracks.filter((t) => !DEDO_TRILHA.test(t.name)); return c; }
 function finishSetup(anims) {
+  anims.forEach(semDedos);
   for (const n of OMBROS) if (bones[n]) restQ[n] = bones[n].quaternion.clone();   // clavículas na posição natural do modelo
   mixer = new THREE.AnimationMixer(model);
   for (const c of anims) clips[c.name] = c;
@@ -175,6 +180,7 @@ function maisAnimacoes(i) {
     const sel = $('anim');
     for (const c of ag.animations) {
       if (clips[c.name]) continue;
+      semDedos(c);
       clips[c.name] = c;
       const a = mixer.clipAction(c); a.play(); a.setEffectiveWeight(0); a.timeScale = 0;
       body[c.name] = { a, w: 0, tw: 0, once: false };
@@ -791,7 +797,7 @@ function punhoUpdate(dt) {
       const b = bones[s + 'Hand' + f + k], c = bones[s + 'Hand' + f + (k + 1)] || null; if (!b) continue;
       b.getWorldPosition(_t); (c ? c.getWorldPosition(_d) : _d.copy(_t).addScaledVector(_t.clone().sub(_h).normalize(), 0.02)).sub(_t).normalize();
       _a.crossVectors(_d, _n).normalize();
-      const ang = (f === 'Thumb' ? [15, 25, 20][k - 1] : [60, 70, 50][k - 1]) * punho.w;
+      const ang = (f === 'Thumb' ? [10, 18, 14][k - 1] : [45, 55, 40][k - 1]) * punho.w;
       rotWorld(b, _a, ang); b.updateMatrixWorld(true);
     }
   }
