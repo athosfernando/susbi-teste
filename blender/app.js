@@ -117,7 +117,7 @@ loader.load('susbi.glb?v=34d', (gltf) => {
     if (o.isBone) bones[o.name.replace('mixamorig', '')] = o;
   });
   // animações do Meshy ficam num arquivo separado e leve (lote 1: 20 animações)
-  loader.load('animacoes1.glb?v=34', (ag) => finishSetup(ag.animations), undefined, () => finishSetup(gltf.animations));
+  loader.load('animacoes1.glb?v=34f', (ag) => finishSetup(ag.animations), undefined, () => finishSetup(gltf.animations));
 }, (e) => {
   if (e.total) $('bar').firstElementChild.style.width = Math.round((e.loaded / e.total) * 100) + '%';
 }, (err) => {
@@ -171,7 +171,7 @@ function finishSetup(anims) {
 
 // pacotes extras de animação (animacoes2.glb, animacoes3.glb, ...): carrega um por vez até não existir o próximo
 function maisAnimacoes(i) {
-  loader.load(`animacoes${i}.glb?v=34`, (ag) => {
+  loader.load(`animacoes${i}.glb?v=34f`, (ag) => {
     const sel = $('anim');
     for (const c of ag.animations) {
       if (clips[c.name]) continue;
