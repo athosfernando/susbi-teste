@@ -91,7 +91,7 @@ function placeRoot() {
 }
 
 const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
-loader.load('susbi.glb?v=34', (gltf) => {
+loader.load('susbi.glb?v=34d', (gltf) => {
   model = gltf.scene; scene.add(model);
   root = model.getObjectByName('SUSBI_esqueleto') || model.getObjectByName('SmartRigArmature') || model.getObjectByName('SUSBI18_esqueleto') || model.children[0];
   R0.copy(root.quaternion);
