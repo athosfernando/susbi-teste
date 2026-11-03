@@ -417,6 +417,10 @@ const NOMES = {
   Talk_with_Right_Hand_Open: 'Falar com a mão direita', Agree_Gesture: 'Concordar', Listening_Gesture: 'Escutar', Big_Wave_Hello: 'Acenar olá',
   Shrug: 'Encolher os ombros', Confused_Scratch: 'Coçar a cabeça (confusa)',
 };
+fetch('nomes.json?v=32').then((r) => r.json()).then((j) => {   // nomes em português dos ~500 movimentos
+  Object.assign(NOMES, j);
+  for (const o of document.querySelectorAll('#anim option')) if (o.value && NOMES[o.value]) o.textContent = NOMES[o.value];
+}).catch(() => {});
 const IDLES = [['Idle_02', 5], ['Long_Breathe_and_Look_Around', 2]];   // Idle_03 é um alongamento: só no menu de teste
 const TALKS = ['Talk_with_Hands_Open', 'Talk_with_Right_Hand_Open', 'Stand_and_Chat'];
 // rotina: toda animação que não é fala, parada, caminhada ou giro entra sozinha (inclusive as próximas que chegarem)
