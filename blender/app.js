@@ -753,7 +753,39 @@ $('boca').oninput = (e) => { manualJaw = e.target.value * 0.10; $('vBoca').textC
 
 // ---------- laço ----------
 const clock = new THREE.Clock();
-const TOUCHED = ['Spine', 'Spine1', 'Spine2', 'LeftShoulder', 'RightShoulder', 'LeftArm', 'RightArm', 'Neck', 'Head', 'Jaw', 'LeftEye', 'RightEye'];
+const DEDOS = [];
+for (const s of ['Left', 'Right']) for (const f of ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky']) for (const k of [1, 2, 3]) DEDOS.push(s + 'Hand' + f + k);
+const TOUCHED = ['Spine', 'Spine1', 'Spine2', 'LeftShoulder', 'RightShoulder', 'LeftArm', 'RightArm', 'Neck', 'Head', 'Jaw', 'LeftEye', 'RightEye', ...DEDOS];
+// mão fechada em punho nos movimentos de luta cuja animação não mexe nos dedos
+const LUTA = /punch|box|hook|uppercut|combat|guard|fight|fist|strike|kick|counter|taunt|stance|jab|elbow|sword|axe|weapon|attack|slash|parry|block|gun|rifle|torch|bow|spear|shield|grip|carry|hang|climb|ladder|rope/i;
+const punho = { w: 0 };
+function dedosMexem(clip) {
+  const t = clip.tracks.find((x) => /HandIndex2\.quaternion/.test(x.name)); if (!t) return false;
+  const v = t.values; let mx = 0;
+  for (let i = 4; i < v.length; i += 4) mx = Math.max(mx, 1 - Math.abs(v[0] * v[i] + v[1] * v[i + 1] + v[2] * v[i + 2] + v[3] * v[i + 3]));
+  return mx > 0.01;   // ~16°
+}
+const _n = new THREE.Vector3(), _d = new THREE.Vector3(), _a = new THREE.Vector3(), _h = new THREE.Vector3(), _t = new THREE.Vector3();
+function punhoUpdate(dt) {
+  const B = bodyCur && body[bodyCur];
+  const quer = B && LUTA.test(bodyCur) && !(B.dedos ??= dedosMexem(B.a.getClip())) ? 1 : 0;
+  punho.w += (quer - punho.w) * damp(dt, 6); if (punho.w < 0.01) return;
+  model.updateMatrixWorld(true);
+  for (const s of ['Left', 'Right']) {
+    const hd = bones[s + 'Hand'], i1 = bones[s + 'HandIndex1'], p1 = bones[s + 'HandPinky1'], t2 = bones[s + 'HandThumb2'];
+    if (!hd || !i1 || !p1 || !t2) continue;
+    hd.getWorldPosition(_h);
+    _n.crossVectors(i1.getWorldPosition(_d).sub(_h), p1.getWorldPosition(_a).sub(_h)).normalize();     // normal da palma
+    if (_n.dot(t2.getWorldPosition(_t).sub(_h)) < 0) _n.negate();                                        // para o lado do polegar
+    for (const f of ['Index', 'Middle', 'Ring', 'Pinky', 'Thumb']) for (const k of [1, 2, 3]) {
+      const b = bones[s + 'Hand' + f + k], c = bones[s + 'Hand' + f + (k + 1)] || null; if (!b) continue;
+      b.getWorldPosition(_t); (c ? c.getWorldPosition(_d) : _d.copy(_t).addScaledVector(_t.clone().sub(_h).normalize(), 0.02)).sub(_t).normalize();
+      _a.crossVectors(_d, _n).normalize();
+      const ang = (f === 'Thumb' ? [25, 35, 30][k - 1] : [80, 95, 70][k - 1]) * punho.w;
+      rotWorld(b, _a, ang); b.updateMatrixWorld(true);
+    }
+  }
+}
 const baseQ = {};
 // As animações do Meshy sobem as clavículas uns 25° acima do natural (ombro encolhido, parecendo ombreira).
 // Depois do mixer, puxa as clavículas de volta para perto da posição natural, guardando só 20% do movimento.
@@ -768,6 +800,7 @@ function tick(dt, t) {
     mixer.update(dt);                 // pose base (animações do corpo misturadas com a caminhada)
     for (const n of TOUCHED) { const b = bones[n]; if (b) (baseQ[n] = baseQ[n] || new THREE.Quaternion()).copy(b.quaternion); }
     for (const n of OMBROS) { const b = bones[n]; if (b && restQ[n]) b.quaternion.slerp(restQ[n], OMBRO_FIXO); }
+    punhoUpdate(dt);
     bodyUpdate(dt, t);                // movimentos sutis por cima
     speechUpdate(); mouthUpdate(dt, t); blinkUpdate(dt);
     model.updateMatrixWorld(true);
